@@ -59,9 +59,10 @@ function curve(m, small) {
   const W = small ? 400 : 820, H = small ? 230 : 280, L = 44, R = 14, T = 12, B = 26;
   const vals = pts.map((p) => p[1]).concat([m.zl, m.zh, m.best].filter((v) => v != null));
   if (m.lineToday != null) vals.push(m.lineToday);
-  const srt = pts.map((p) => p[1]).sort((x, y) => x - y), medS = srt[Math.floor(srt.length / 2)], cap = medS * 2.5;  // keep one freak day from flattening the chart
-  const off = pts.filter((p) => p[1] > cap).length;
-  let lo = Math.min(...vals) * 0.9, hi = Math.min(Math.max(...vals), Math.max(cap, ...vals.filter((v) => v <= cap))) * 1.06;
+  const srt = pts.map((p) => p[1]).sort((x, y) => x - y), p90 = srt[Math.min(srt.length - 1, Math.floor(srt.length * 0.9))];
+  const must = [m.zl, m.zh, m.best, m.lineToday].filter((v) => v != null), top = Math.max(p90 * 1.3, ...must);
+  const off = pts.filter((p) => p[1] > top);
+  let lo = Math.min(...srt, ...must) * 0.9, hi = Math.max(...srt.filter((v) => v <= top), ...must) * 1.08;
   const wS = m.wStart ? Date.parse(m.wStart) : null, wE = m.wEnd ? Date.parse(m.wEnd) : null, nowT = Date.parse(new Date().toISOString().slice(0, 10)), winOn = wS && wE && wS - nowT <= 120 * 864e5;
   const t0 = Date.parse(pts[0][0]), tToday = Math.max(Date.parse(pts.at(-1)[0]), Date.parse(new Date().toISOString().slice(0, 10))), tN = winOn ? Math.max(tToday, wE) : tToday, sp = Math.max(tN - t0, 864e5); const XD = (d) => L + ((Date.parse(d) - t0) / sp) * (W - L - R), X = (i) => XD(pts[i][0]), today = new Date(tToday).toISOString().slice(0, 10), Y = (v) => H - B - ((Math.min(v, hi) - lo) / (hi - lo)) * (H - B - T);
   const [a, b] = fit(pts);
@@ -71,6 +72,7 @@ function curve(m, small) {
   if (m.hasZone && m.centre != null) s += `<line class="bcentre" x1="${L}" x2="${W - R}" y1="${Y(m.centre)}" y2="${Y(m.centre)}"/>`;
   if (winOn) s += `<rect class="bwin" x="${XD(m.wStart)}" y="${T}" width="${Math.max(3, XD(m.wEnd) - XD(m.wStart))}" height="${H - B - T}"/><text class="bwinl" x="${XD(m.wStart) + 4}" y="${T + 12}">expected bottom</text>`;
   s += `<polyline class="bcurve" points="${pts.map((p, i) => `${X(i).toFixed(1)},${Y(p[1]).toFixed(1)}`).join(" ")}"/>`;
+  off.forEach((p) => { const i = pts.indexOf(p), x = X(i); s += `<path class="boff" d="M${x - 6},${T + 9} L${x},${T + 1} L${x + 6},${T + 9} Z"/><text class="boffl" x="${x}" y="${T + 21}" text-anchor="middle">↑ ${money(p[1])}</text>`; });
   const official = m.lineToday != null && m.slope != null;
   if (official) { // Alert Desk trend: value today = trend_line_today, back over trend_window_days at slope %/day
     const days = Math.min(m.twin || 14, Math.round((tToday - t0) / 864e5)), d0 = new Date(tToday - days * 864e5).toISOString().slice(0, 10);
@@ -79,7 +81,7 @@ function curve(m, small) {
   } else s += `<line class="btrend" x1="${X(0)}" y1="${Y(a)}" x2="${X(pts.length - 1)}" y2="${Y(a + b * (pts.length - 1))}"/>`;
   if (m.best != null) s += `<circle class="bbest" cx="${XD(today)}" cy="${Y(m.best)}" r="7"><title>best listing today ${money(m.best)}</title></circle><text x="${XD(today) - 10}" y="${Y(m.best) + (Y(m.best) > H - B - 20 ? -12 : 18)}" text-anchor="end" class="bbestl">best listing ${money(m.best)}</text>`;
   [0, Math.floor((pts.length - 1) / 2), pts.length - 1].forEach((i) => (s += `<text x="${X(i)}" y="${H - 7}" text-anchor="middle" class="ax">${esc(String(pts[i][0]).slice(5))}</text>`));
-  if (wS && !winOn) s += `<text class="bwinl" x="${W - R - 4}" y="${T + 12}" text-anchor="end">expected bottom ${fmtWindow(m.wStart, m.wEnd)} →</text>`;
+
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Price curve since release">${s}</svg>
-  <div class="legend">${off ? `<span>▲ ${off} day${off > 1 ? "s" : ""} off the top of the scale</span>` : ""}<span><i class="lg-bc"></i>${m.seriesSrc === "official" ? "daily sold median since release" : `daily median of our sold comps (${pts.length} days, derived here)`}</span><span><i class="lg-bt"></i>${m.lineToday != null && m.slope != null ? `Alert Desk trend (${m.twin || 14}d, ${m.slope > 0 ? "+" : ""}${(+m.slope).toFixed(1)}%/day)` : "trend fitted here (no official trend yet)"}</span>${m.hasZone ? `<span><i class="lg-bb"></i>${m.zLbl}${m.centre != null ? " (dashed = centre)" : ""}</span>` : ""}${m.best != null ? `<span><i class="lg-bd"></i>best listing today (item+ship)</span>` : ""}</div>`;
+  <div class="legend">${wS && !winOn ? `<span class="bwinl2">→ expected bottom ${fmtWindow(m.wStart, m.wEnd)} (off chart, future)</span>` : ""}${off.length ? `<span>↑ ${off.length} spike day${off.length > 1 ? "s" : ""} clipped at the top</span>` : ""}<span><i class="lg-bc"></i>${m.seriesSrc === "official" ? "daily sold median since release" : `daily median of our sold comps (${pts.length} days, derived here)`}</span><span><i class="lg-bt"></i>${m.lineToday != null && m.slope != null ? `Alert Desk trend (${m.twin || 14}d, ${m.slope > 0 ? "+" : ""}${(+m.slope).toFixed(1)}%/day)` : "trend fitted here (no official trend yet)"}</span>${m.hasZone ? `<span><i class="lg-bb"></i>${m.zLbl}${m.centre != null ? " (dashed = centre)" : ""}</span>` : ""}${m.best != null ? `<span><i class="lg-bd"></i>best listing today (item+ship)</span>` : ""}</div>`;
 }
