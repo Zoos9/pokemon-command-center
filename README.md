@@ -21,13 +21,14 @@ js/adapters/local.js     dev only: reads ../web-data/*.json, polls
 js/derive.js             joins tables into the card model; deal / target / suggested-zone logic
 js/charts.js             inline SVG: sparklines, price chart, radar
 js/app.js                router + views
-tools/export_snapshot.py dev: team files -> /home/box/pokemon-team/web-data/*.json (OUTSIDE web/, never deployed)
-tools/shoot.py           Playwright screenshots + console-error check + Supabase sign-in smoke test
 ```
+Dev-only tools live outside the deployed folder, in `/home/box/pokemon-team/web-dev-tools/`:
+- `export_snapshot.py`: writes the team files to `/home/box/pokemon-team/web-data/*.json`, mirroring the Supabase rows. Never deployed.
+- `shoot.py`: Playwright screenshots, console-error check, and a Supabase sign-in smoke test.
 
 ## Run locally
 ```
-python3 tools/export_snapshot.py --watch 60 &                      # refresh ../web-data every 60s
+python3 /home/box/pokemon-team/web-dev-tools/export_snapshot.py --watch 60 &                      # refresh ../web-data every 60s
 cd /home/box/pokemon-team/.webdev && python3 -m http.server 8792 --bind 127.0.0.1   # .webdev = symlinks web/ + web-data/
 open http://127.0.0.1:8792/web/                    # local JSON (real files, no sign-in)
 open http://127.0.0.1:8792/web/?backend=supabase   # force the Supabase path (sign-in screen)
@@ -42,20 +43,27 @@ Run `/home/box/pokemon-team/sync/deploy_site.sh /home/box/pokemon-team/web`. It 
 - **Deal filter:** lowest reputable ask (seller feedback ≥ 30), and the card's 7-day median must be at least $5 with buy-below < median. Matches below $5 go into the collapsed bulk bin.
 - **Headline:** with no targets set, it reads "NO TARGETS SET — no confirmed deals yet".
 
-## Supabase columns the app expects (confirm)
+## Supabase schema (confirmed 2026-10-19)
+The column map lives in `js/fields.js`. The local export (`web-dev-tools/export_snapshot.py`) runs the same row builders as `sync/push_to_supabase.py`, so local and Supabase rows have identical shapes.
+
 | table | columns used |
 |---|---|
-| watchlist | id, name, set_name, number, rarity, language, buy_below, sell_above, sold (jsonb, `.median` used as fallback), sort_order |
-| sold_sales | card_id, item_id, sold_date, price_usd, title, url, seller, seller_feedback, condition, ts |
-| active_snapshot | card_id, scanned_at, ebay_total, reputable_count, lowest_reputable (jsonb listing), listings (jsonb[]), auctions_ending_soon (jsonb[]) |
-| listing jsonb | total, url, title, seller, seller_feedback, seller_feedback_pct, condition |
-| scans | ts, cards_scanned, cards_requested, errors (jsonb[] of {card_id,error}), calls_today, daily_limit |
-| alerts | ts, card_id, card, number, price_kind, direction (below_buy/above_sell), value, target, link |
+| watchlist | id, name, set_name, number, rarity, language, buy_below, sell_above, sold (jsonb; `.median` is a fallback), sort_order |
+| sold_sales | card_id, item_id, sold_date, price_usd, title, url, seller, seller_feedback, condition |
+| active_snapshot | card_id, scanned_at, ebay_total, reputable_count, bin_count, auction_count, lowest_total, lowest_reputable, listings[], auctions_ending_soon[] |
+| listing jsonb | item_id, title, url, total, price, shipping, shipping_unknown, seller, seller_feedback, seller_feedback_pct, condition, condition_id, is_auction, bids, end_date, buying_options, location, flags. `image` exists but is **not shown**, because seller photos show copyrighted card art. |
+| scans | ts, cards_scanned, cards_requested, errors, calls_today, daily_limit |
+| alerts | ts, card_id, card, number, language, price_kind (sold_median / lowest_active), direction (below_buy / above_sell), value, target, link |
 | feed | ts, from_bot, to_bot, type, text |
-| research_calls | date, card_id, card, call (text parsed for phase/zone/buy_below), prediction, confidence, evidence_links, review_by |
-| card_history | ts, date, card_id, median_7d, median_30d, sales_7d, sales_30d, trend, lowest_reputable_ask, ask_vs_median_7d_pct, active_reputable_count |
+| research_calls | date, card_id, phase, zone_low, zone_high, buy_below, confidence (low/med), call (display only), prediction, evidence_links, review_by. A null zone is shown as "no suggested zone yet". `card_id = 'SET'` is shown as a set-wide banner. |
+| card_history | ts, date, card_id, median_7d, median_30d, sales_7d, sales_30d, last_sale, trend, active_reputable_count, ebay_total, lowest_reputable_ask, ask_vs_median_7d_pct, outliers_dropped |
 | reports | id, name, date, kind, markdown |
-| allowed_emails | used by PokeData.auth.hasAccess() |
+| allowed_emails | own row only; drives `PokeData.auth.hasAccess()` |
 
-Renamed columns live in `js/fields.js` (`TABLES`, `SUPABASE_OVERRIDES`).
-Realtime isn't enabled on the project, so feed and alerts are polled through `PokeData.subscribe` every `pollMs`. Everything else reloads every `dataPollMs`.
+**Listing flags:**
+- "feedback NN%" and "under 40% of sold median, verify" show as red ⚠ badges.
+- "shipping not quoted" shows as a yellow "+ship?" note.
+- "auction, current bid" is informational.
+- A clean listing gets "✓ seller N fb, no flags".
+
+**Live updates:** Supabase realtime (`postgres_changes`) on feed, alerts, active_snapshot, scans and watchlist, all on one channel. Events are debounced. Polling every 30s for feed and alerts is the backup. Results identical to the last fetch are dropped, and the page skips re-renders when its HTML hasn't changed, so an event plus a poll never renders twice.
