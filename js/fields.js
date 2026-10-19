@@ -3,9 +3,12 @@
 export const TABLES = {
   watchlist:       { fields: { id: "id", name: "name", set: "set_name", number: "number", rarity: "rarity", language: "language", buy_below: "buy_below", sell_above: "sell_above", sold: "sold", sort_order: "sort_order" } },
   sold_sales:      { fields: { card_id: "card_id", item_id: "item_id", price: "price_usd", sold_date: "sold_date", condition: "condition", title: "title", url: "url", seller: "seller", seller_feedback: "seller_feedback" } },
-  active_snapshot: { fields: { card_id: "card_id", scanned_at: "scanned_at", ebay_total: "ebay_total", reputable_count: "reputable_count", bin_count: "bin_count", auction_count: "auction_count", lowest_total: "lowest_total", lowest: "lowest_reputable", listings: "listings", auctions_ending_soon: "auctions_ending_soon" } },
+  active_snapshot: { fields: { card_id: "card_id", scanned_at: "scanned_at", ebay_total: "ebay_total", reputable_count: "reputable_count", bin_count: "bin_count", auction_count: "auction_count", lowest_total: "lowest_total", lowest: "lowest_reputable", listings: "listings",
+    // fallbacks for the lowest listing when its jsonb lacks the per-listing fields
+    lowest_item_usd: "lowest_item_usd", lowest_shipping_usd: "lowest_shipping_usd", lowest_tax_rate: "lowest_tax_rate", lowest_tax_usd: "lowest_tax_usd", lowest_total_with_tax_usd: "lowest_total_with_tax_usd", lowest_tax_note: "lowest_tax_note", auctions_ending_soon: "auctions_ending_soon" } },
   scans:           { fields: { ts: "ts", cards_scanned: "cards_scanned", cards_requested: "cards_requested", errors: "errors", calls_today: "calls_today", daily_limit: "daily_limit" } },
-  alerts:          { fields: { ts: "ts", card_id: "card_id", card: "card", number: "number", language: "language", price_kind: "price_kind", direction: "direction", value: "value", target: "target", link: "link", seller: "seller", seller_feedback: "seller_feedback", title: "title", data: "data" } },
+  alerts:          { fields: { ts: "ts", card_id: "card_id", card: "card", number: "number", language: "language", price_kind: "price_kind", direction: "direction", value: "value", target: "target", link: "link", seller: "seller", seller_feedback: "seller_feedback", title: "title", data: "data",
+    item_usd: "item_usd", shipping_usd: "shipping_usd", tax_rate: "tax_rate", tax_usd: "tax_usd", total_with_tax_usd: "total_with_tax_usd", tax_note: "tax_note", alert_text: "alert_text" } },
   feed:            { fields: { ts: "ts", from: "from_bot", to: "to_bot", type: "type", text: "text" } },
   research_calls:  { fields: { date: "date", card_id: "card_id", card: "card", call: "call", prediction: "prediction", confidence: "confidence", phase: "phase", zone_low: "zone_low", zone_high: "zone_high", buy_below: "buy_below", status: "status", data: "data", evidence_links: "evidence_links", review_by: "review_by" } },
   card_history:    { fields: { ts: "ts", date: "date", card_id: "card_id", median_7d: "median_7d", median_30d: "median_30d", sales_7d: "sales_7d", sales_30d: "sales_30d", last_sale: "last_sale", trend: "trend", active_count: "active_reputable_count", ebay_total: "ebay_total", lowest_ask: "lowest_reputable_ask", ask_vs_median_7d_pct: "ask_vs_median_7d_pct", outliers_dropped: "outliers_dropped" } },
@@ -15,16 +18,25 @@ export const TABLES = {
 // `image` exists in the data but is deliberately NOT mapped (seller photos of copyrighted card art).
 export const LISTING = { item_id: "item_id", title: "title", url: "url", total: "total", price: "price", shipping: "shipping", shipping_unknown: "shipping_unknown",
   seller: "seller", feedback: "seller_feedback", feedback_pct: "seller_feedback_pct", condition: "condition", condition_id: "condition_id",
-  // All-in price fields from Alert Desk (names to be confirmed; rename here only):
-  item_usd: "item_usd", shipping_usd: "shipping_usd", tax_rate: "tax_rate", tax_usd: "tax_usd", total_with_tax_usd: "total_with_tax_usd",
+  // All-in price fields (Alert Desk, migration 20261019_tax_fields). `total` stays item + shipping.
+  item_usd: "item_usd", shipping_usd: "shipping_usd", tax_rate: "tax_rate", tax_usd: "tax_usd", total_with_tax_usd: "total_with_tax_usd", tax_note: "tax_note",
   is_auction: "is_auction", bids: "bids", end_date: "end_date", buying_options: "buying_options", location: "location", flags: "flags" };
 
 export function mapRow(key, row) { const f = TABLES[key].fields, o = {}; for (const k in f) o[k] = row[f[k]] ?? null; return o; }
 export function mapListing(l) { if (!l) return null; const o = {}; for (const k in LISTING) o[k] = l[LISTING[k]] ?? null; return o; }
 
-// Alerts may carry the same price fields as top-level columns or inside the raw `data` jsonb; read either.
+// Alert columns -> listing-shaped price object for the price button (raw `data` only as a fallback for old rows).
+const PF = ["item_usd", "shipping_usd", "tax_rate", "tax_usd", "total_with_tax_usd", "tax_note"];
 export function alertPrice(a) {
-  const src = { ...(a.data || {}), ...a }, o = {};
-  for (const k of ["item_usd", "shipping_usd", "tax_rate", "tax_usd", "total_with_tax_usd"]) o[k] = src[LISTING[k]] ?? src[k] ?? null;
-  return { ...o, total: a.price_kind === "lowest_active" ? a.value : null, price: src.price ?? null, shipping: src.shipping ?? null, shipping_unknown: src.shipping_unknown ?? null, item_id: src.item_id || a.card_id };
+  const d = a.data || {}, o = {};
+  for (const k of PF) o[k] = a[k] ?? d[LISTING[k]] ?? null;
+  const hasNew = PF.some((k) => k in a && a[k] !== undefined) || "item_usd" in d;
+  return { ...o, has_price_fields: hasNew, total: a.price_kind === "lowest_active" ? a.value : null, price: d.price ?? null, shipping: d.shipping ?? null, shipping_unknown: d.shipping_unknown ?? null, item_id: d.item_id || a.card_id };
+}
+// Lowest listing: per-listing jsonb fields first, then the active_snapshot lowest_* columns.
+export function withLowestFallback(l, snap) {
+  if (!l) return l;
+  const o = { ...l };
+  for (const k of PF) if (o[k] == null && snap["lowest_" + k] != null) o[k] = snap["lowest_" + k];
+  return o;
 }

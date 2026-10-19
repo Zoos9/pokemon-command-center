@@ -1,6 +1,6 @@
 // Join raw tables into one card model + deal / radar logic. Pure functions, no DOM.
 import { CONFIG } from "./cfg.js";
-import { mapListing } from "./fields.js";
+import { mapListing, withLowestFallback } from "./fields.js";
 import { median, num } from "./util.js";
 
 const short = (name) => { const m = (name || "").match(/^(.*?)\s*\((.*)\)\s*$/); return m ? [m[1], m[2].split(",")[0]] : [name || "?", ""]; };
@@ -26,7 +26,7 @@ export function buildModel(t) {
     if (med7 == null && ss.length) { const last = new Date(ss.at(-1).sold_date); med7 = median(ss.filter((s) => (last - new Date(s.sold_date)) / 864e5 <= 7).map((s) => +s.price)); }
     const sug = { phase: c.phase ? String(c.phase).toLowerCase() : null, low: num(c.zone_low), high: num(c.zone_high), buy: num(c.buy_below), conf: c.confidence || null, prediction: c.prediction || null, review_by: c.review_by || null, links: c.evidence_links || [], call: c.call || null, date: c.date || null };
     const target = { buy: num(w.buy_below), sell: num(w.sell_above) };
-    const lowest = mapListing(a.lowest); const listings = (a.listings || []).map(mapListing).filter(Boolean);
+    const lowest = withLowestFallback(mapListing(a.lowest), a); const listings = (a.listings || []).map(mapListing).filter(Boolean);
     const auctions = (a.auctions_ending_soon || []).map(mapListing).filter(Boolean).sort((x, y) => (x.end_date || "").localeCompare(y.end_date || ""));
     const lowestTotal = num(a.lowest_total) ?? lowest?.total ?? null;
     const effBuy = target.buy ?? sug.buy, src = target.buy != null ? "target" : sug.buy != null ? "suggested" : null;
