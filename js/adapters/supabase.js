@@ -20,7 +20,7 @@ export async function createSupabase() {
   const fetchers = {
     watchlist: () => all("watchlist", "*", "sort_order"),
     sold_sales: () => all("sold_sales", "card_id,item_id,sold_date,price_usd,title,url,seller,seller_feedback,condition", "sold_date"),
-    active_snapshot: () => all("active_snapshot", "card_id,scanned_at,ebay_total,reputable_count,bin_count,auction_count,lowest_total,lowest_reputable,listings,auctions_ending_soon"),
+    active_snapshot: () => all("active_snapshot", "card_id,scanned_at,ebay_total,reputable_count,bin_count,auction_count,lowest_total,lowest_item_usd,lowest_shipping_usd,lowest_tax_rate,lowest_tax_usd,lowest_total_with_tax_usd,lowest_tax_note,lowest_reputable,listings,auctions_ending_soon"),
     scans: async () => (await P.scans(20)).reverse(),
     alerts: async () => (await P.alerts(200)).reverse(),
     feed: async () => (await P.feed(300)).reverse(),
