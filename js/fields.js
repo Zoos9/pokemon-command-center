@@ -8,7 +8,7 @@ export const TABLES = {
     lowest_item_usd: "lowest_item_usd", lowest_shipping_usd: "lowest_shipping_usd", lowest_tax_rate: "lowest_tax_rate", lowest_tax_usd: "lowest_tax_usd", lowest_total_with_tax_usd: "lowest_total_with_tax_usd", lowest_tax_note: "lowest_tax_note", auctions_ending_soon: "auctions_ending_soon" } },
   scans:           { fields: { ts: "ts", cards_scanned: "cards_scanned", cards_requested: "cards_requested", errors: "errors", calls_today: "calls_today", daily_limit: "daily_limit" } },
   alerts:          { fields: { ts: "ts", card_id: "card_id", card: "card", number: "number", language: "language", price_kind: "price_kind", direction: "direction", value: "value", target: "target", link: "link", seller: "seller", seller_feedback: "seller_feedback", title: "title", data: "data",
-    item_usd: "item_usd", shipping_usd: "shipping_usd", tax_rate: "tax_rate", tax_usd: "tax_usd", total_with_tax_usd: "total_with_tax_usd", tax_note: "tax_note", alert_text: "alert_text" } },
+    item_usd: "item_usd", shipping_usd: "shipping_usd", tax_rate: "tax_rate", tax_usd: "tax_usd", total_with_tax_usd: "total_with_tax_usd", tax_note: "tax_note", alert_text: "alert_text", status: "status", status_reason: "status_reason", status_checked_at: "status_checked_at" } },
   feed:            { fields: { ts: "ts", from: "from_bot", to: "to_bot", type: "type", text: "text" } },
   research_calls:  { fields: { date: "date", card_id: "card_id", card: "card", call: "call", prediction: "prediction", confidence: "confidence", phase: "phase", zone_low: "zone_low", zone_high: "zone_high", buy_below: "buy_below", status: "status", data: "data", evidence_links: "evidence_links", review_by: "review_by" } },
   card_history:    { fields: { ts: "ts", date: "date", card_id: "card_id", median_7d: "median_7d", median_30d: "median_30d", sales_7d: "sales_7d", sales_30d: "sales_30d", last_sale: "last_sale", trend: "trend", active_count: "active_reputable_count", ebay_total: "ebay_total", lowest_ask: "lowest_reputable_ask", ask_vs_median_7d_pct: "ask_vs_median_7d_pct", outliers_dropped: "outliers_dropped" } },
@@ -40,3 +40,5 @@ export function withLowestFallback(l, snap) {
   for (const k of PF) if (o[k] == null && snap["lowest_" + k] != null) o[k] = snap["lowest_" + k];
   return o;
 }
+// Only status 'active' alerts are live. Null/missing status = legacy row (pre-status column), treated as active.
+export const alertActive = (a) => a.status == null || a.status === "active";

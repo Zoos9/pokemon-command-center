@@ -111,3 +111,4 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .pt.compact .ptv{white-space:nowrap}.lst td:nth-child(1){width:88px!important}.tbl .pt.compact .ptv{font-size:13px}
 .pt.pop .ptb{width:250px;min-width:250px}.ptb span{white-space:nowrap}
 .ptnote{font-size:11px;color:var(--mut);padding-top:4px;font-style:italic}.alp{margin:2px 0}
+.past{margin-top:8px;opacity:.6;filter:grayscale(1)}.past summary{cursor:pointer;font-size:12px;color:var(--mut)}.pal{font-size:12px;padding:6px 0;border-top:1px solid rgba(128,128,128,.2)}.pst{text-transform:uppercase;font-size:10px;font-weight:700;border:1px solid currentColor;border-radius:4px;padding:0 4px}.psr{font-style:italic}.pal small{display:block}

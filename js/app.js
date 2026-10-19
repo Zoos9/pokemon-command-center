@@ -4,7 +4,7 @@ import { buildModel, deals, warnFlags } from "./derive.js";
 import { spark, priceChart, radar, phaseColor } from "./charts.js";
 import { esc, money, pct, tCT, dCT, ago } from "./util.js";
 import { priceBtn } from "./price.js";
-import { alertPrice } from "./fields.js";
+import { alertPrice, alertActive } from "./fields.js";
 
 const TEAM = [
   { name: "Pokemon Lead", role: "Coordinator: splits work, keeps the team on track", color: "#ffcb05" },
@@ -80,10 +80,15 @@ function setBanner() {
   return `<div class="setban" style="border-color:${phaseColor(sc.phase)}"><b style="color:${phaseColor(sc.phase)}">SET-WIDE: ${esc((sc.phase || "?").toUpperCase())}</b> <span>${esc(sc.prediction || sc.call || "")}</span> <small>confidence ${esc(sc.confidence || "?")} · ${esc(sc.date || "")}</small></div>`;
 }
 const KIND = { sold_median: "7d sold median", lowest_active: "lowest active listing" };
+function pastAlerts() {
+  const p = S.alerts.filter((x) => !alertActive(x)).reverse();
+  if (!p.length) return "";
+  return `<details class="past" data-k="past-alerts"><summary>Past alerts (${p.length})</summary>${p.map((x) => `<div class="pal"><span class="pst">${esc(x.status)}</span> ${esc(x.card)} ${esc(x.number || "")} · was ${money(x.total_with_tax_usd ?? x.value)}${x.status_reason ? `<div class="psr">${esc(x.status_reason)}</div>` : ""}<small>fired ${dCT(x.ts)}${x.status_checked_at ? ` · checked ${dCT(x.status_checked_at)}` : ""}</small></div>`).join("")}</details>`;
+}
 function alertsBox(anyTargets) {
-  const a = S.alerts.slice(-5).reverse();
+  const a = S.alerts.filter(alertActive).slice(-5).reverse();
   return `<section class="panel alerts"><h2>🚨 Alerts</h2>${a.length ? a.map((x) => x.alert_text ? `<div class="al"><b>${x.direction === "above_sell" ? "📤 SELL" : "📥 BUY"}</b> ${esc(x.alert_text)} ${x.price_kind === "lowest_active" ? `<div class="alp">${priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" })}</div>` : ""}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>` : `<div class="al"><b>${x.direction === "above_sell" ? "📤 SELL" : "📥 BUY"}</b> ${esc(x.card)} ${esc(x.number || "")} — ${esc(KIND[x.price_kind] || x.price_kind || "price")} ${x.price_kind === "lowest_active" ? priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" }) : money(x.value)} is ${x.direction === "above_sell" ? "above your sell" : "below your buy"} target ${money(x.target)} <small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>`).join("")
-    : `<p class="empty">${anyTargets ? "No alerts fired yet." : "No alerts yet — set buy_below / sell_above targets to enable."}</p>`}</section>`;
+    : `<p class="empty">${anyTargets ? (S.alerts.length ? "No live alerts right now." : "No alerts fired yet.") : "No alerts yet — set buy_below / sell_above targets to enable."}</p>`}${pastAlerts()}</section>`;
 }
 function feedList(n) {
   const f = S.feed.slice(-n).reverse();
