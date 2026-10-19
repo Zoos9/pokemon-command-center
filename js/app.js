@@ -5,7 +5,7 @@ import { spark, priceChart, radar, phaseColor } from "./charts.js";
 import { esc, money, pct, tCT, dCT, ago } from "./util.js";
 import { priceBtn } from "./price.js";
 import { alertPrice, alertActive } from "./fields.js";
-import { bottomSection, bottomModel, meterHtml, phaseChip } from "./bottom.js";
+import { bottomSection, bottomModel, meterHtml, phaseChip, fmtWindow } from "./bottom.js";
 
 const TEAM = [
   { name: "Pokemon Lead", role: "Coordinator: splits work, keeps the team on track", color: "#ffcb05" },
@@ -116,9 +116,13 @@ function pastAlerts() {
 }
 const alTier = (x) => (String(x.tier || "DEAL").toUpperCase() === "WATCH" ? "WATCH" : "DEAL");
 const alLbl = (x) => (alTier(x) === "WATCH" ? "👀 watching" : x.direction === "above_sell" ? "📤 SELL" : "📥 BUY");
+const alCeil = (x) => { if (alTier(x) !== "WATCH" || x.deal_ceiling == null) return "";
+  const now = +x.value, gap = now && +x.deal_ceiling ? (now / x.deal_ceiling - 1) * 100 : null;
+  return `<div class="ceil">becomes a deal at <b>${c2(x.deal_ceiling)}</b>${gap != null ? ` <small>now ${c2(now)} item+ship · ${gap > 0 ? `${gap.toFixed(1)}% above` : "at/below it"}</small>` : ""}</div>`; };
 const alZone = (x) => { if (x.zone_low == null || x.zone_high == null) return "";
   const d = x.zone_distance_pct, t = d == null ? "" : +d === 0 ? " · inside the zone" : +d > 0 ? ` · ${(+d).toFixed(0)}% above zone` : ` · ${Math.abs(+d).toFixed(0)}% below zone`;
-  return `<div class="alz">bottom zone ${money(x.zone_low)}–${money(x.zone_high)}${t}${x.phase ? ` · ${esc(x.phase)}` : ""}</div>`; };
+  const w = fmtWindow(null, null, x.research_bottom_window);
+  return `${alCeil(x)}<div class="alz">predicted bottom ${money(x.zone_low)}–${money(x.zone_high)}${x.zone_mid != null ? ` (mid ${money(x.zone_mid)})` : ""}${t}${x.phase ? ` · ${esc(x.phase)}` : ""}${x.research_confidence ? ` · ${esc(x.research_confidence)} confidence` : ""}${w ? ` · expected ${w}` : ""}${x.research_falling_knife ? ` · <b class="kn">🔪 falling knife</b>` : ""}</div>`; };
 const alRow = (x) => x.alert_text ? `<div class="al"><b>${alLbl(x)}</b> ${esc(x.alert_text)} ${x.price_kind === "lowest_active" ? `<div class="alp">${priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" })}</div>` : ""}${alZone(x)}${alTier(x) === "WATCH" && x.tier_reason ? `<div class="twr">why watch: ${esc(x.tier_reason)}</div>` : ""}${flagBadges(x.flags)}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>` : `<div class="al"><b>${alLbl(x)}</b> ${esc(x.card)} ${esc(x.number || "")} — ${esc(KIND[x.price_kind] || x.price_kind || "price")} ${x.price_kind === "lowest_active" ? priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" }) : money(x.value)} is ${x.direction === "above_sell" ? "above your sell" : "below your buy"} target ${money(x.target)} ${alZone(x)}${alTier(x) === "WATCH" && x.tier_reason ? `<div class="twr">why watch: ${esc(x.tier_reason)}</div>` : ""}${flagBadges(x.flags)}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>`;
 function alertsBox(anyTargets) {
   const a = S.alerts.filter(alertActive).slice(-8).reverse(), deal = a.filter((x) => alTier(x) === "DEAL"), watch = a.filter((x) => alTier(x) === "WATCH");

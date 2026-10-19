@@ -23,7 +23,7 @@ export function priceChart(c, small = false) {
   let s = "";
   const step = niceStep((hi - lo) / 5);
   for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) s += `<line x1="${L}" x2="${W - Rm}" y1="${Y(v)}" y2="${Y(v)}" class="grid"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" class="ax">${money(v)}</text>`;
-  if (c.sug.low != null && c.sug.high != null) s += `<rect x="${L}" y="${Y(c.sug.high)}" width="${W - L - Rm}" height="${Math.max(2, Y(c.sug.low) - Y(c.sug.high))}" class="band-sug"/><text x="${L + 8}" y="${Y(c.sug.high) + 15}" class="lab-sug">SUGGESTED ZONE ${money(c.sug.low)}–${money(c.sug.high)} (research)</text>`;
+  if (c.sug.low != null && c.sug.high != null) s += `<rect x="${L}" y="${Y(c.sug.high)}" width="${W - L - Rm}" height="${Math.max(2, Y(c.sug.low) - Y(c.sug.high))}" class="band-sug"/><text x="${L + 8}" y="${Y(c.sug.high) + 15}" class="lab-sug">PREDICTED BOTTOM ${money(c.sug.low)}–${money(c.sug.high)} (research)</text>`;
   if (c.target.buy != null) s += `<line x1="${L}" x2="${W - Rm}" y1="${Y(c.target.buy)}" y2="${Y(c.target.buy)}" class="ln-target"/><text x="${L + 8}" y="${Y(c.target.buy) - 6}" class="lab-target">YOUR BUY TARGET ${money(c.target.buy)}</text>`;
   if (c.target.sell != null) s += `<line x1="${L}" x2="${W - Rm}" y1="${Y(c.target.sell)}" y2="${Y(c.target.sell)}" class="ln-sell"/><text x="${L + 8}" y="${Y(c.target.sell) - 6}" class="lab-sell">YOUR SELL TARGET ${money(c.target.sell)}</text>`;
   s += sales.map(([d, p]) => `<circle cx="${X(d).toFixed(1)}" cy="${Y(p).toFixed(1)}" r="4" class="dot"><title>${esc(d)} · ${money(p)}</title></circle>`).join("");
@@ -32,7 +32,7 @@ export function priceChart(c, small = false) {
   const n = Math.min(6, days.length), idx = [...new Set(Array.from({ length: n }, (_, i) => Math.round((i * (days.length - 1)) / Math.max(1, n - 1))))];
   s += idx.map((i) => `<text x="${X(days[i])}" y="${H - 8}" text-anchor="middle" class="ax">${days[i].slice(5)}</text>`).join("");
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sold price history">${s}</svg>
-  <div class="legend"><span><i class="lg-dot"></i>each sale</span>${c.daily.length > 1 ? `<span><i class="lg-med"></i>daily median</span>` : ""}<span><i class="lg-ask"></i>lowest live ask</span>${c.sug.low != null ? `<span><i class="lg-sug"></i>suggested zone</span>` : ""}${c.target.buy != null ? `<span><i class="lg-target"></i>your target</span>` : ""}</div>`;
+  <div class="legend"><span><i class="lg-dot"></i>each sale</span>${c.daily.length > 1 ? `<span><i class="lg-med"></i>daily median</span>` : ""}<span><i class="lg-ask"></i>lowest live ask</span>${c.sug.low != null ? `<span><i class="lg-sug"></i>predicted bottom</span>` : ""}${c.target.buy != null ? `<span><i class="lg-target"></i>your target</span>` : ""}</div>`;
 }
 function niceStep(x) { const p = 10 ** Math.floor(Math.log10(x || 1)), m = x / p; return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p; }
 

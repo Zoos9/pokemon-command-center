@@ -129,3 +129,4 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .altier.watch{border:1.5px dashed #7f8ea3;border-radius:10px;padding:4px 8px;background:#7f8ea314;filter:saturate(.35)}.altier.watch h3{color:#9fb0c6}.altier.watch .pt summary{font-weight:500;opacity:.8}
 .twr{font-size:11px;color:#9fb0c6;font-style:italic;margin:2px 0}
 .alz{font-size:11px;color:#7fe0c0;margin:2px 0}.altier.watch .alz{color:#9fb0c6}
+.bcentre{stroke:#2ee6a6;stroke-width:1.5;stroke-dasharray:3 3}.bwin{fill:#c77dff22;stroke:#c77dff;stroke-dasharray:4 3}.bwinl{fill:#c77dff;font-size:11px;font-weight:800}.knife{display:inline-block;background:#ff4d6d22;color:#ff4d6d;border:1.5px solid #ff4d6d;border-radius:8px;padding:2px 8px;font-weight:900;font-size:13px;margin:0 0 8px}.knife small{font-weight:500}.ceil{font-size:15px;font-weight:800;color:#ffcb05;margin:4px 0}.ceil small{font-weight:500;color:var(--mut)}.kn{color:#ff4d6d}
