@@ -26,7 +26,7 @@ function shell(body, tab) {
   const scanErr = scan?.errors?.length ? ` · <span class="warn">${scan.errors.length} card${scan.errors.length > 1 ? "s" : ""} failed last scan</span>` : "";
   return `<header class="top"><a class="brand" href="#/deals"><span class="mk" aria-hidden="true">◆</span><span>COMMAND CENTER</span></a>
     <nav class="topnav">${nav}</nav>
-    <div class="fresh">listings ${act ? `${tCT(act)} <small>(${ago(act)})</small>` : "—"} · sold thru ${sold || "—"}${scanErr}${D.backend()?.signOut ? ` · <button class="link" id="signout">sign out</button>` : ""}</div></header>
+    <div class="fresh">listings ${act ? `${tCT(act)} <small>(${ago(act)})</small>` : "—"} · sold thru ${sold || "—"}${scanErr}${D.backend()?.signOut ? ` · <a class="link" href="#/account">🔑 password</a> · <button class="link" id="signout">sign out</button>` : ""}</div></header>${pwBanner()}
     ${S.error ? `<div class="err" role="alert">Data problem: ${esc(S.error)}</div>` : ""}
     <main>${body}</main><nav class="tabs">${nav}</nav>`;
 }
@@ -141,7 +141,7 @@ function vTeam() {
   <div class="roster">${TEAM.map((t) => `<div class="mem" style="border-color:${t.color}"><b style="color:${t.color}">${esc(t.name)}</b><small>${esc(t.role)}</small><span>${last[t.name] ? "active " + ago(last[t.name].ts) : "no messages yet"}</span></div>`).join("")}</div>
   <div class="split"><section class="panel"><h2>📡 Feed</h2>${feedList(80)}</section>
   <aside>${scan ? `<section class="panel"><h2>Last scan</h2><p>${dCT(scan.ts)} · ${scan.cards_scanned}/${scan.cards_requested} cards · API ${scan.calls_today}/${scan.daily_limit} today</p>${scan.errors?.length ? `<p class="warn">${scan.errors.length} errors: ${scan.errors.map((e) => esc(e.card_id)).join(", ")}</p>` : ""}</section>` : ""}
-  <section class="panel"><h2>Reports</h2>${S.reports.length ? S.reports.slice().reverse().map((r) => `<details><summary>${esc(r.title)} <small>${esc(r.date || "")}</small></summary><pre>${esc(r.body)}</pre></details>`).join("") : `<p class="empty">No reports yet.</p>`}</section></aside></div>`;
+  ${D.backend().kind === "supabase" ? `<section class="panel"><h2>Account</h2><p><a class="link" href="#/account">🔑 Set or change password</a></p></section>` : ""}<section class="panel"><h2>Reports</h2>${S.reports.length ? S.reports.slice().reverse().map((r) => `<details><summary>${esc(r.title)} <small>${esc(r.date || "")}</small></summary><pre>${esc(r.body)}</pre></details>`).join("") : `<p class="empty">No reports yet.</p>`}</section></aside></div>`;
 }
 
 // ---------- render / boot
@@ -150,8 +150,9 @@ const detKey = (d) => (d.querySelector("summary")?.textContent || "").replace(/\
 function render(force) {
   if (!S.model) return;
   const [r, arg] = route(), tab = r === "card" ? "cards" : r;
-  const views = { deals: vDeals, radar: vRadar, cards: vCards, card: () => vCard(arg), team: vTeam };
+  const views = { deals: vDeals, radar: vRadar, cards: vCards, card: () => vCard(arg), team: vTeam, account: vAccount };
   const y = window.scrollY, key = location.hash;
+  if (r === "account" && key === lastKey && !force) return;   // don't wipe a half-typed password on data polls
   const html = shell((views[r] || vDeals)(), views[r] ? tab : "deals");
   if (key === lastKey && html === lastHtml) return;           // nothing changed: leave the DOM alone
   // Preserve UI state across data refreshes: open <details>, horizontal strips, focused input.
@@ -173,6 +174,8 @@ function bind() {
   if (q) { q.oninput = () => { S.q = q.value; const pos = q.selectionStart; render(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos); }; }
   document.querySelectorAll("[data-lang]").forEach((b) => (b.onclick = () => { S.lang = b.dataset.lang; render(); }));
   const so = document.getElementById("sort"); if (so) so.onchange = () => { S.sort = so.value; render(); };
+  bindAccount();
+  const off = document.getElementById("pwoff"); if (off) off.onclick = () => { localStorage.setItem("cc-pw-banner-off", "1"); lastHtml = ""; render(); };
   const out = document.getElementById("signout"); if (out) out.onclick = async () => { await D.backend().signOut(); location.reload(); };
 }
 async function loadAll() {
@@ -182,47 +185,90 @@ async function loadAll() {
   } catch (e) { console.error(e); S.error = e.message; if (!S.model) { $app.innerHTML = `<div class="center"><h1>Couldn't load data</h1><p>${esc(e.message)}</p></div>`; return; } }
   render();
 }
-// ---------- sign-in (email → 6-8 digit code verified in-app; link still works in a browser)
+// ---------- sign-in: email + password (primary, works in the home-screen app without SMTP);
+// magic link = fallback for Safari; code box hidden behind "I have a code".
 const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-const SI = { step: "email", email: localStorage.getItem("cc-last-email") || "", msg: "", err: "", cooldownUntil: 0 };
-function authErr(e) {
-  const m = (e?.message || String(e)).toLowerCase();
-  if (/expired|invalid|otp|token/.test(m)) return "That code is wrong or has expired. Check the newest email, or resend a code.";
-  if (/rate|too many|security purposes|seconds/.test(m)) return "Too many tries — wait a minute, then resend.";
+const SI = { mode: "password", email: localStorage.getItem("cc-last-email") || "", msg: "", err: "", cooldownUntil: 0, showPw: false };
+function authErr(e, ctx) {
+  const m = (e?.message || String(e)).toLowerCase(), code = (e?.code || "").toLowerCase();
+  if (ctx === "password" && (/invalid login credentials|invalid_credentials/.test(m + code)))
+    return "Wrong email or password. If you've never set a password, use “Email me a sign-in link” in Safari first, then set one under 🔑 Password.";
+  if (/email not confirmed/.test(m)) return "This email isn't confirmed yet — use the sign-in link email once in Safari.";
+  if (/expired|invalid|otp|token/.test(m)) return "That code is wrong or has expired. Check the newest email, or send a new link.";
+  if (/rate|too many|security purposes|seconds/.test(m)) return "Too many tries — wait a minute and try again.";
+  if (/failed to fetch|network/.test(m)) return "No connection — check your internet and try again.";
   return e?.message || String(e);
 }
+const eye = (id) => `<button type="button" class="pwtoggle" data-for="${id}" aria-label="Show password">${SI.showPw ? "Hide" : "Show"}</button>`;
 function signInScreen() {
   const be = D.backend(), left = Math.max(0, Math.ceil((SI.cooldownUntil - Date.now()) / 1000));
-  const tip = standalone() ? `<p class="tip">📱 You're in the installed app: <b>type the code</b> from the email. Don't tap the link — it opens your browser instead of this app.</p>`
-    : `<p class="tip">Type the code from the email, or tap the link in it.</p>`;
-  $app.innerHTML = `<div class="center signin"><div class="mk big" aria-hidden="true">◆</div><h1>Command Center</h1>${SI.step === "email"
-    ? `<p>Sign in with your email. We'll send a one-time code.</p>
-       <form id="si"><input type="email" id="em" required placeholder="you@example.com" autocomplete="email" inputmode="email" aria-label="Email" value="${esc(SI.email)}"><button>Send code</button></form>`
-    : `<p>Code sent to <b>${esc(SI.email)}</b>.</p>${tip}
-       <form id="vc"><input id="code" class="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" minlength="6" maxlength="8" placeholder="••••••" aria-label="One-time code" enterkeyhint="go"><button class="go">Sign in</button></form>
-       <div class="sirow"><button class="link" id="resend" ${left ? "disabled" : ""}>${left ? `Resend in ${left}s` : "Resend code"}</button><button class="link" id="other">Use a different email</button></div>`}
+  const saf = standalone() ? `<p class="tip">📱 You're in the home-screen app. The sign-in link opens in <b>Safari</b>, not here — so sign in there once, set a password (🔑 Password in the header), then come back and sign in here with it.</p>` : "";
+  let body;
+  if (SI.mode === "password") body = `<p>Sign in with your email and password.</p>
+    <form id="pw" autocomplete="on"><input type="email" id="em" name="email" required placeholder="you@example.com" autocomplete="email" inputmode="email" aria-label="Email" value="${esc(SI.email)}">
+    <div class="pwrow"><input type="${SI.showPw ? "text" : "password"}" id="pass" name="password" required placeholder="Password" autocomplete="current-password" aria-label="Password">${eye("pass")}</div>
+    <button class="go">Sign in</button></form>
+    <div class="sirow"><button class="link" id="tolink">Email me a sign-in link</button><button class="link" id="tocode">I have a code</button></div>`;
+  else if (SI.mode === "link") body = `<p>No password yet? We'll email you a sign-in link. <b>Open it in Safari</b>, then set a password under 🔑 Password.</p>${saf}
+    <form id="ln"><input type="email" id="em" required placeholder="you@example.com" autocomplete="email" inputmode="email" aria-label="Email" value="${esc(SI.email)}"><button class="go" ${left ? "disabled" : ""}>${left ? `Wait ${left}s` : "Email me a link"}</button></form>
+    <div class="sirow"><button class="link" id="topw">← Sign in with password</button><button class="link" id="tocode">I have a code</button></div>`;
+  else body = `<p>Enter the code from your email${SI.email ? ` for <b>${esc(SI.email)}</b>` : ""}.</p>
+    <form id="vc">${SI.email ? "" : `<input type="email" id="em" required placeholder="you@example.com" autocomplete="email" aria-label="Email">`}<input id="code" class="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" minlength="6" maxlength="8" placeholder="••••••" aria-label="One-time code"><button class="go">Sign in</button></form>
+    <div class="sirow"><button class="link" id="topw">← Sign in with password</button></div>`;
+  $app.innerHTML = `<div class="center signin"><div class="mk big" aria-hidden="true">◆</div><h1>Command Center</h1>${body}
     ${SI.err ? `<p class="msg bad" role="alert">${esc(SI.err)}</p>` : SI.msg ? `<p class="msg">${esc(SI.msg)}</p>` : ""}</div>`;
-  const send = async (email) => {
-    SI.err = ""; SI.msg = "";
-    try { const r = await be.signIn(email); if (r && r.error) throw r.error; SI.email = email.trim().toLowerCase(); localStorage.setItem("cc-last-email", SI.email);
-      SI.step = "code"; SI.cooldownUntil = Date.now() + 60000; SI.msg = "Check your inbox (and spam)."; }
-    catch (e) { SI.err = authErr(e); }
-    signInScreen();
-  };
-  const f1 = document.getElementById("si");
-  if (f1) f1.onsubmit = (e) => { e.preventDefault(); e.target.querySelector("button").disabled = true; send(document.getElementById("em").value); };
-  const f2 = document.getElementById("vc");
-  if (f2) {
-    const inp = document.getElementById("code"); inp.focus();
-    inp.oninput = () => { inp.value = inp.value.replace(/\D/g, "").slice(0, 8); };
-    f2.onsubmit = async (e) => { e.preventDefault(); const btn = f2.querySelector("button"); btn.disabled = true; btn.textContent = "Checking…";
-      try { await be.verifyCode(SI.email, inp.value); location.reload(); }
-      catch (err) { SI.err = authErr(err); SI.msg = ""; signInScreen(); } };
-    document.getElementById("resend").onclick = () => { if (Date.now() >= SI.cooldownUntil) send(SI.email); };
-    document.getElementById("other").onclick = () => { SI.step = "email"; SI.err = SI.msg = ""; signInScreen(); };
-    const tick = () => { const b = document.getElementById("resend"); if (SI.step !== "code" || !b) return; const l = Math.max(0, Math.ceil((SI.cooldownUntil - Date.now()) / 1000)); b.textContent = l ? `Resend in ${l}s` : "Resend code"; b.disabled = !!l; if (l) setTimeout(tick, 1000); };
-    if (left) setTimeout(tick, 1000);
-  }
+  const go = (mode) => { SI.mode = mode; SI.err = SI.msg = ""; signInScreen(); };
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  on("tolink", () => go("link")); on("tocode", () => go("code")); on("topw", () => go("password"));
+  document.querySelectorAll(".pwtoggle").forEach((b) => (b.onclick = () => { SI.showPw = !SI.showPw; const inp = document.getElementById(b.dataset.for); inp.type = SI.showPw ? "text" : "password"; b.textContent = SI.showPw ? "Hide" : "Show"; }));
+  const remember = (em) => { SI.email = em.trim().toLowerCase(); localStorage.setItem("cc-last-email", SI.email); };
+  const f = document.getElementById("pw");
+  if (f) f.onsubmit = async (e) => { e.preventDefault(); const btn = f.querySelector(".go"); btn.disabled = true; btn.textContent = "Signing in…";
+    const em = document.getElementById("em").value; remember(em);
+    try { await be.signInWithPassword(em, document.getElementById("pass").value); localStorage.setItem("cc-pw-set", "1"); location.reload(); }
+    catch (err) { SI.err = authErr(err, "password"); SI.msg = ""; signInScreen(); } };
+  const l = document.getElementById("ln");
+  if (l) l.onsubmit = async (e) => { e.preventDefault(); const em = document.getElementById("em").value; remember(em); SI.err = SI.msg = "";
+    try { const r = await be.signIn(em); if (r && r.error) throw r.error; SI.cooldownUntil = Date.now() + 60000; SI.msg = standalone() ? "Sent. Open the email in Safari (not this app), set a password there, then come back." : "Sent — check your inbox (and spam), then open the link."; }
+    catch (err) { SI.err = authErr(err); }
+    signInScreen(); };
+  if (l && left) setTimeout(() => SI.mode === "link" && signInScreen(), 1000);
+  const v = document.getElementById("vc");
+  if (v) { const inp = document.getElementById("code"); inp.oninput = () => { inp.value = inp.value.replace(/\D/g, "").slice(0, 8); };
+    v.onsubmit = async (e) => { e.preventDefault(); const emEl = document.getElementById("em"); if (emEl) remember(emEl.value);
+      try { await be.verifyCode(SI.email, inp.value); location.reload(); } catch (err) { SI.err = authErr(err); signInScreen(); } }; }
+}
+
+// ---------- account: set / change password
+function jwtAmr() { try { const raw = JSON.parse(localStorage.getItem("cc-auth") || "{}"); const p = JSON.parse(atob(raw.access_token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/"))); return (p.amr || []).map((a) => a.method || a); } catch { return []; } }
+const needsPwBanner = () => D.backend()?.kind === "supabase" && !localStorage.getItem("cc-pw-set") && !localStorage.getItem("cc-pw-banner-off") && !jwtAmr().includes("password");
+const pwBanner = () => (needsPwBanner() ? `<div class="pwban">🔑 Set a password so the home-screen app can sign you in without email links. <a href="#/account">Set password</a> <button class="link" id="pwoff" aria-label="Dismiss">Not now</button></div>` : "");
+const ACC = { msg: "", err: "" };
+function vAccount() {
+  if (D.backend().kind !== "supabase") return `<section class="hero"><h1 class="verdict">Account</h1><p class="sub">Local dev mode — no account.</p></section>`;
+  return `<section class="hero"><h1 class="verdict">🔑 Password</h1><p class="sub">Set a password once; then sign in with email + password in the home-screen app (iPhone Keychain can save it).</p></section>
+  <section class="panel acct"><form id="setpw" autocomplete="on"><input type="email" name="email" autocomplete="username" value="${esc(localStorage.getItem("cc-last-email") || "")}" hidden>
+  <label>New password<div class="pwrow"><input type="password" id="np1" required minlength="8" autocomplete="new-password" placeholder="At least 8 characters">${eye("np1")}</div></label>
+  <label>Confirm password<input type="password" id="np2" required minlength="8" autocomplete="new-password" placeholder="Type it again"></label>
+  <button class="go">Save password</button></form>
+  ${ACC.err ? `<p class="msg bad" role="alert">${esc(ACC.err)}</p>` : ACC.msg ? `<p class="msg">${esc(ACC.msg)}</p>` : ""}
+  <p class="empty">Signed in as ${esc(localStorage.getItem("cc-last-email") || "you")}. <button class="link" id="signout2">Sign out</button></p></section>`;
+}
+function bindAccount() {
+  const f = document.getElementById("setpw"); if (!f) return;
+  document.querySelectorAll(".pwtoggle").forEach((b) => (b.onclick = () => { const i = document.getElementById(b.dataset.for); const show = i.type === "password"; i.type = show ? "text" : "password"; document.getElementById("np2").type = i.type; b.textContent = show ? "Hide" : "Show"; }));
+  f.onsubmit = async (e) => { e.preventDefault(); ACC.err = ACC.msg = "";
+    const a = document.getElementById("np1").value, b = document.getElementById("np2").value;
+    if (a.length < 8) ACC.err = "Use at least 8 characters.";
+    else if (a !== b) ACC.err = "The two passwords don't match.";
+    else { const btn = f.querySelector(".go"); btn.disabled = true; btn.textContent = "Saving…";
+      try { await D.backend().setPassword(a); localStorage.setItem("cc-pw-set", "1"); ACC.msg = "Password saved. In the home-screen app, sign in with your email and this password."; }
+      catch (err) { const m = (err?.message || "").toLowerCase();
+        ACC.err = /reauth|recent|nonce|secure password/.test(m) ? "For security, Supabase needs a fresh sign-in before changing the password. Sign out, sign in again with the email link (in Safari), then set the password right away."
+          : /same|different from the old/.test(m) ? "That's already your password — nothing to change."
+          : /weak|short|characters/.test(m) ? "Password too weak: " + err.message : authErr(err); } }
+    render(true); };
+  const so = document.getElementById("signout2"); if (so) so.onclick = async () => { await D.backend().signOut(); location.reload(); };
 }
 async function start() {
   await loadAll();

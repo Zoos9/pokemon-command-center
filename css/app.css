@@ -87,3 +87,10 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .signin form{width:100%}.signin input{width:100%;min-width:0}.signin #vc button{width:100%}
 .signin .sirow .link{background:none;border:0;color:var(--yel);font-weight:700;text-decoration:underline;min-height:44px;padding:0 4px}
 .signin .sirow .link:disabled{color:var(--dim);text-decoration:none}
+
+.pwrow{position:relative;display:flex}.pwrow input{flex:1;padding-right:70px!important}.pwtoggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none!important;border:0;color:var(--yel)!important;font-weight:700!important;font-size:14px!important;min-height:44px!important;padding:0 10px!important}
+.signin #pw,.signin #ln,.signin #vc{flex-direction:column}.signin #pw input,.signin #ln input{font-size:17px}.signin .go{width:100%}
+.pwban{max-width:1280px;margin:12px auto 0;padding:10px 16px;background:#ffcb0522;border:1px solid #ffcb0566;border-radius:12px;font-size:14px;color:var(--tx)}.pwban a{color:var(--yel);font-weight:700}.pwban .link{margin-left:10px;color:var(--dim)}
+@media (max-width:600px){.pwban{margin:10px 16px 0}}
+.acct form{display:flex;flex-direction:column;gap:12px;max-width:420px}.acct label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:4px}.acct input{background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:12px;padding:12px;font:inherit;font-size:17px;min-height:48px}
+.acct .go{background:var(--yel);border:0;border-radius:12px;min-height:52px;font-weight:800;font-size:16px;font-family:inherit;cursor:pointer}.fresh a.link{color:inherit}

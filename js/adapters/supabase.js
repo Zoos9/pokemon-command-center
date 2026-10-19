@@ -56,6 +56,8 @@ export async function createSupabase() {
     hasAccess: () => P.auth.hasAccess(),
     signIn: (email) => P.auth.sendMagicLink(email),
     verifyCode: (email, code) => P.auth.verifyCode(email, code),
+    signInWithPassword: (email, pw) => P.auth.signInWithPassword(email, pw),
+    setPassword: (pw) => P.auth.setPassword(pw),
     signOut: () => P.auth.signOut(),
     onAuth: (cb) => P.auth.onChange(cb),
   };

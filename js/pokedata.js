@@ -36,6 +36,16 @@
       if (error) throw error;
       return data.session;
     },
+    async signInWithPassword(email, password) {
+      const { data, error } = await sb.auth.signInWithPassword({ email: email.trim().toLowerCase(), password });
+      if (error) throw error;
+      return data.session;
+    },
+    async setPassword(password) {
+      const { data, error } = await sb.auth.updateUser({ password });
+      if (error) throw error;
+      return data.user;
+    },
     async signOut() { await sb.auth.signOut(); },
     // true if the signed-in email is on the allowlist (RLS lets a user see only their own allowlist row)
     async hasAccess() { const r = await q(sb.from("allowed_emails").select("email").limit(1)); return r.length > 0; },
