@@ -3,18 +3,38 @@
 (function () {
   const cfg = window.POKE_CONFIG;
   const sb = window.supabase.createClient(cfg.supabaseUrl, cfg.supabaseKey, {
-    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" },
+    // Session lives in this origin's localStorage under an explicit key, so an installed PWA keeps it across launches.
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit",
+            storage: window.localStorage, storageKey: "cc-auth" },
   });
   const num = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
   async function q(p) { const { data, error } = await p; if (error) throw error; return data || []; }
 
   const auth = {
-    async session() { return (await sb.auth.getSession()).data.session; },
+    // Restore on startup: getSession() reads localStorage; if the access token is expired/near expiry but the
+    // refresh token is valid (e.g. iOS killed the app overnight), refresh before deciding to show sign-in.
+    async session() {
+      let s = (await sb.auth.getSession()).data.session;
+      if (s && (!s.expires_at || s.expires_at * 1000 < Date.now() + 60000)) {
+        const r = await sb.auth.refreshSession(); s = r.data?.session || (r.error ? null : s);
+      }
+      if (!s && localStorage.getItem("cc-auth")) {          // stored session that getSession couldn't use: try refresh once
+        const r = await sb.auth.refreshSession().catch(() => null); s = r?.data?.session || null;
+      }
+      return s;
+    },
     onChange(cb) { return sb.auth.onAuthStateChange((_e, s) => cb(s)); },
     async sendMagicLink(email) {
       const redirect = window.location.origin + window.location.pathname;
       const { error } = await sb.auth.signInWithOtp({ email: email.trim().toLowerCase(), options: { emailRedirectTo: redirect } });
       if (error) throw error;
+    },
+    // In-app sign-in: the same email carries a 6-8 digit code ({{ .Token }}); verifying it here creates the
+    // session inside the installed app (the magic link would open the browser, which has separate storage).
+    async verifyCode(email, token) {
+      const { data, error } = await sb.auth.verifyOtp({ email: email.trim().toLowerCase(), token: String(token).trim(), type: "email" });
+      if (error) throw error;
+      return data.session;
     },
     async signOut() { await sb.auth.signOut(); },
     // true if the signed-in email is on the allowlist (RLS lets a user see only their own allowlist row)

@@ -182,12 +182,47 @@ async function loadAll() {
   } catch (e) { console.error(e); S.error = e.message; if (!S.model) { $app.innerHTML = `<div class="center"><h1>Couldn't load data</h1><p>${esc(e.message)}</p></div>`; return; } }
   render();
 }
-function signInScreen(msg) {
-  $app.innerHTML = `<div class="center signin"><div class="mk big" aria-hidden="true">◆</div><h1>Command Center</h1><p>Sign in with your email — we'll send a magic link.</p>
-  <form id="si"><input type="email" id="em" required placeholder="you@example.com" autocomplete="email" aria-label="Email"><button>Send link</button></form><p class="msg">${esc(msg || "")}</p></div>`;
-  document.getElementById("si").onsubmit = async (e) => { e.preventDefault(); const btn = e.target.querySelector("button"); btn.disabled = true;
-    try { const r = await D.backend().signIn(document.getElementById("em").value); if (r && r.error) throw r.error; signInScreen("Check your inbox for the sign-in link."); }
-    catch (err) { signInScreen(err.message || String(err)); } };
+// ---------- sign-in (email → 6-8 digit code verified in-app; link still works in a browser)
+const standalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const SI = { step: "email", email: localStorage.getItem("cc-last-email") || "", msg: "", err: "", cooldownUntil: 0 };
+function authErr(e) {
+  const m = (e?.message || String(e)).toLowerCase();
+  if (/expired|invalid|otp|token/.test(m)) return "That code is wrong or has expired. Check the newest email, or resend a code.";
+  if (/rate|too many|security purposes|seconds/.test(m)) return "Too many tries — wait a minute, then resend.";
+  return e?.message || String(e);
+}
+function signInScreen() {
+  const be = D.backend(), left = Math.max(0, Math.ceil((SI.cooldownUntil - Date.now()) / 1000));
+  const tip = standalone() ? `<p class="tip">📱 You're in the installed app: <b>type the code</b> from the email. Don't tap the link — it opens your browser instead of this app.</p>`
+    : `<p class="tip">Type the code from the email, or tap the link in it.</p>`;
+  $app.innerHTML = `<div class="center signin"><div class="mk big" aria-hidden="true">◆</div><h1>Command Center</h1>${SI.step === "email"
+    ? `<p>Sign in with your email. We'll send a one-time code.</p>
+       <form id="si"><input type="email" id="em" required placeholder="you@example.com" autocomplete="email" inputmode="email" aria-label="Email" value="${esc(SI.email)}"><button>Send code</button></form>`
+    : `<p>Code sent to <b>${esc(SI.email)}</b>.</p>${tip}
+       <form id="vc"><input id="code" class="code" required inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6,8}" minlength="6" maxlength="8" placeholder="••••••" aria-label="One-time code" enterkeyhint="go"><button class="go">Sign in</button></form>
+       <div class="sirow"><button class="link" id="resend" ${left ? "disabled" : ""}>${left ? `Resend in ${left}s` : "Resend code"}</button><button class="link" id="other">Use a different email</button></div>`}
+    ${SI.err ? `<p class="msg bad" role="alert">${esc(SI.err)}</p>` : SI.msg ? `<p class="msg">${esc(SI.msg)}</p>` : ""}</div>`;
+  const send = async (email) => {
+    SI.err = ""; SI.msg = "";
+    try { const r = await be.signIn(email); if (r && r.error) throw r.error; SI.email = email.trim().toLowerCase(); localStorage.setItem("cc-last-email", SI.email);
+      SI.step = "code"; SI.cooldownUntil = Date.now() + 60000; SI.msg = "Check your inbox (and spam)."; }
+    catch (e) { SI.err = authErr(e); }
+    signInScreen();
+  };
+  const f1 = document.getElementById("si");
+  if (f1) f1.onsubmit = (e) => { e.preventDefault(); e.target.querySelector("button").disabled = true; send(document.getElementById("em").value); };
+  const f2 = document.getElementById("vc");
+  if (f2) {
+    const inp = document.getElementById("code"); inp.focus();
+    inp.oninput = () => { inp.value = inp.value.replace(/\D/g, "").slice(0, 8); };
+    f2.onsubmit = async (e) => { e.preventDefault(); const btn = f2.querySelector("button"); btn.disabled = true; btn.textContent = "Checking…";
+      try { await be.verifyCode(SI.email, inp.value); location.reload(); }
+      catch (err) { SI.err = authErr(err); SI.msg = ""; signInScreen(); } };
+    document.getElementById("resend").onclick = () => { if (Date.now() >= SI.cooldownUntil) send(SI.email); };
+    document.getElementById("other").onclick = () => { SI.step = "email"; SI.err = SI.msg = ""; signInScreen(); };
+    const tick = () => { const b = document.getElementById("resend"); if (SI.step !== "code" || !b) return; const l = Math.max(0, Math.ceil((SI.cooldownUntil - Date.now()) / 1000)); b.textContent = l ? `Resend in ${l}s` : "Resend code"; b.disabled = !!l; if (l) setTimeout(tick, 1000); };
+    if (left) setTimeout(tick, 1000);
+  }
 }
 async function start() {
   await loadAll();
@@ -202,7 +237,7 @@ async function start() {
   const be = await D.init();
   if (be.needsAuth) {
     const s = await be.session();
-    if (!s) { signInScreen(); be.onAuth((s2) => { if (s2) location.reload(); }); return; }
+    if (!s) { signInScreen(); be.onAuth((s2) => { if (s2 && !document.getElementById("vc")) location.reload(); }); return; }
     if (be.hasAccess && !(await be.hasAccess().catch(() => false))) {
       $app.innerHTML = `<div class="center signin"><div class="mk big" aria-hidden="true">◆</div><h1>No access</h1><p>${esc(s.user?.email || "This account")} isn't on the allowlist.</p><p><button id="so2">Sign out</button></p></div>`;
       document.getElementById("so2").onclick = async () => { await be.signOut(); location.reload(); }; return;
