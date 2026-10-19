@@ -94,3 +94,19 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 @media (max-width:600px){.pwban{margin:10px 16px 0}}
 .acct form{display:flex;flex-direction:column;gap:12px;max-width:420px}.acct label{font-size:13px;color:var(--mut);display:flex;flex-direction:column;gap:4px}.acct input{background:var(--bg);border:1px solid var(--line);color:var(--tx);border-radius:12px;padding:12px;font:inherit;font-size:17px;min-height:48px}
 .acct .go{background:var(--yel);border:0;border-radius:12px;min-height:52px;font-weight:800;font-size:16px;font-family:inherit;cursor:pointer}.fresh a.link{color:inherit}
+
+/* all-in price button (details/summary) */
+.pt{position:relative;display:inline-block;font-family:var(--mono)}
+.pt>summary{list-style:none;cursor:pointer;display:inline-flex;align-items:baseline;gap:6px;min-height:44px;padding:4px 2px;border-radius:10px;-webkit-tap-highlight-color:transparent}
+.pt>summary::-webkit-details-marker{display:none}.pt>summary:focus-visible{outline:2px solid var(--yel)}
+.pt .ptv{font-weight:700}.pt .ptl{font:600 11px 'Bricolage Grotesque';color:var(--dim)}.pt .ptc{font-size:12px;color:var(--yel);transition:transform .15s}.pt[open] .ptc{transform:rotate(180deg)}
+.big .pt .ptv{font-size:42px;color:var(--grn)}.deal.suggested .big .pt .ptv{color:var(--amb)}.big .pt .ptl{font-size:12px}
+.pt.compact>summary{flex-direction:column;align-items:flex-start;gap:0;min-height:44px;min-width:56px}.pt.compact .ptc{display:none}.pt.compact .ptl{font-size:10px}
+.ptb{background:#0b0916;border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:6px;font:13px 'Bricolage Grotesque';color:#cfc9ee;min-width:220px}
+.ptb>div{display:flex;justify-content:space-between;gap:12px;padding:3px 0}.ptb b{font-family:var(--mono);color:var(--tx)}.ptb .tot{border-top:1px solid var(--line);margin-top:4px;padding-top:6px}.ptb .tot b{color:var(--yel)}
+.ptcmp{font-size:12px;color:var(--grn);padding-top:6px}.ptn{font-size:11px;color:var(--dim);padding-top:4px}
+.pt.pop .ptb{position:absolute;left:0;top:100%;z-index:30;box-shadow:0 10px 30px #000a}
+.lowp{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-weight:700}.lowp .pt .ptv{font-size:20px;color:var(--pink)}
+.deal .big{margin:4px 0}
+.pt.compact .ptv{white-space:nowrap}.lst td:nth-child(1){width:88px!important}.tbl .pt.compact .ptv{font-size:13px}
+.pt.pop .ptb{width:250px;min-width:250px}.ptb span{white-space:nowrap}

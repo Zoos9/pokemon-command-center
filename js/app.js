@@ -3,6 +3,8 @@ import * as D from "./data.js";
 import { buildModel, deals, warnFlags } from "./derive.js";
 import { spark, priceChart, radar, phaseColor } from "./charts.js";
 import { esc, money, pct, tCT, dCT, ago } from "./util.js";
+import { priceBtn } from "./price.js";
+import { alertPrice } from "./fields.js";
 
 const TEAM = [
   { name: "Pokemon Lead", role: "Coordinator: splits work, keeps the team on track", color: "#ffcb05" },
@@ -39,11 +41,13 @@ const fb = (l) => (l?.feedback != null ? `${(+l.feedback).toLocaleString()} fb${
 
 // ---------- Deals
 function dealCard(c, kind) {
-  const ref = kind === "target" ? c.target.buy : c.sug.buy, l = c.lowest;
+  const ref = kind === "target" ? c.target.buy : c.sug.buy, l = c.lowest, refLabel = kind === "target" ? "your target" : "suggested buy-below";
   const under = c.med7 ? (1 - l.total / c.med7) * 100 : null;
+  // The price breakdown sits OUTSIDE the card link so tapping it expands instead of navigating.
   return `<article class="deal ${kind}">${cardLink(c, `<div class="tag">${kind === "target" ? "✅ UNDER YOUR TARGET" : "💡 UNDER SUGGESTED ZONE · not an alert"}</div>
-    <div class="dt">${cname(c)}</div>${l.title ? `<div class="ltitle">“${esc(l.title)}”</div>` : ""}<div class="big">${money(l.total)}${l.shipping_unknown ? `<small class="shipq">+ship?</small>` : ""}</div>
-    <div class="vs">7d sold median <b>${money(c.med7)}</b> · ${kind === "target" ? "your target" : "suggested buy-below"} <b>${money(ref)}</b></div>
+    <div class="dt">${cname(c)}</div>${l.title ? `<div class="ltitle">“${esc(l.title)}”</div>` : ""}`)}
+    <div class="big">${priceBtn(l, { key: "deal-" + c.id, target: ref, targetLabel: refLabel })}</div>
+    ${cardLink(c, `<div class="vs">7d sold median <b>${money(c.med7)}</b> · ${refLabel} <b>${money(ref)}</b> <small>(item+ship ${money(l.total)})</small></div>
     ${under != null ? `<div class="pill">▼ ${under.toFixed(0)}% under market</div>` : ""}
     <div class="sel">seller <b>${esc(l.seller || "?")}</b> · ${fb(l)} · ${esc(l.condition || "")}</div><div class="badges">${legit(l)}${badges(l)}</div>`)}
     ${l.url ? `<a class="ext" href="${esc(l.url)}" target="_blank" rel="noopener">Open on eBay ↗</a>` : ""}</article>`;
@@ -62,7 +66,7 @@ function vDeals() {
   const rows = near.map((c) => `<tr onclick="location.hash='#/card/${encodeURIComponent(c.id)}'"><td>${cardLink(c, cname(c))}</td><td>${phase(c.sug.phase)}</td><td class="n">${money(c.med7)}</td>
     <td class="n">${money(c.effBuy)}<small class="src ${c.src}">${c.src === "target" ? "yours" : "sugg."}</small></td>
     <td><div class="bar"><i style="width:${Math.max(4, Math.min(100, 100 - c.dist * 2))}%;background:${c.dist <= 10 ? "#2ee6a6" : c.dist <= 30 ? "#ffcb05" : "#ff9f1c"}"></i></div><small class="n">${c.dist <= 0 ? "in zone" : pct(c.dist) + " above"}</small></td>
-    <td class="hide-s">${spark(c.daily.map((x) => x[1]), 90, 24)}</td><td class="n hide-s">${money(c.lowest?.total)}</td><td class="n hide-s">${c.s7 ?? "—"}</td></tr>`).join("");
+    <td class="hide-s">${spark(c.daily.map((x) => x[1]), 90, 24)}</td><td class="n hide-s">${priceBtn(c.lowest, { key: "near-" + c.id, pop: true, compact: true, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested" })}</td><td class="n hide-s">${c.s7 ?? "—"}</td></tr>`).join("");
   return `${setBanner()}<section class="hero"><h1 class="verdict">${head}</h1><p class="sub">${sub}</p></section>
     ${d.confirmed.length ? `<section><h2>✅ Under your target <small>confirmed · seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</small></h2><div class="deals">${d.confirmed.map((c) => dealCard(c, "target")).join("")}</div></section>` : ""}
     ${sell}
@@ -78,7 +82,7 @@ function setBanner() {
 const KIND = { sold_median: "7d sold median", lowest_active: "lowest active listing" };
 function alertsBox(anyTargets) {
   const a = S.alerts.slice(-5).reverse();
-  return `<section class="panel alerts"><h2>🚨 Alerts</h2>${a.length ? a.map((x) => `<div class="al"><b>${x.direction === "above_sell" ? "📤 SELL" : "📥 BUY"}</b> ${esc(x.card)} ${esc(x.number || "")} — ${esc(KIND[x.price_kind] || x.price_kind || "price")} ${money(x.value)} is ${x.direction === "above_sell" ? "above your sell" : "below your buy"} target ${money(x.target)} <small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>`).join("")
+  return `<section class="panel alerts"><h2>🚨 Alerts</h2>${a.length ? a.map((x) => `<div class="al"><b>${x.direction === "above_sell" ? "📤 SELL" : "📥 BUY"}</b> ${esc(x.card)} ${esc(x.number || "")} — ${esc(KIND[x.price_kind] || x.price_kind || "price")} ${x.price_kind === "lowest_active" ? priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" }) : money(x.value)} is ${x.direction === "above_sell" ? "above your sell" : "below your buy"} target ${money(x.target)} <small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>`).join("")
     : `<p class="empty">${anyTargets ? "No alerts fired yet." : "No alerts yet — set buy_below / sell_above targets to enable."}</p>`}</section>`;
 }
 function feedList(n) {
@@ -108,7 +112,7 @@ function vCards() {
   <div class="filters"><input id="q" type="search" placeholder="Search card or number" value="${esc(S.q)}" aria-label="Search cards">
   <div class="seg">${["all", "EN", "JP"].map((l) => `<button data-lang="${l}" class="${S.lang === l ? "on" : ""}">${l}</button>`).join("")}</div>
   <select id="sort" aria-label="Sort">${[["dist", "Closest to zone"], ["value", "Highest value"], ["name", "Name"]].map(([k, l]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask ${money(c.lowest?.total)}</span></div></article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
+  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div></article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
 }
 
 // ---------- Card page
@@ -117,7 +121,7 @@ function vCard(id) {
   if (!c) return `<section class="hero"><h1 class="verdict">Card not found</h1><p class="sub"><a href="#/cards">Back to all cards</a></p></section>`;
   const l = c.lowest;
   const row = (x) => { const vs = c.med7 && x.total != null ? (x.total / c.med7 - 1) * 100 : null; const good = c.effBuy && x.total <= c.effBuy;
-    return `<tr><td class="n ${good ? "good" : ""}">${money(x.total)}${x.shipping_unknown ? `<small class="shipq">+ship?</small>` : ""}</td><td>${esc(x.seller || "?")}<small>${fb(x)}</small>${x.title ? `<small class="lt">${esc(x.title)}</small>` : ""}${warnFlags(x).length ? `<div>${badges({ ...x, shipping_unknown: false })}</div>` : ""}</td><td class="hide-s">${esc(x.condition || "")}</td><td class="n ${vs != null && vs < 0 ? "good" : ""}">${pct(vs)}</td><td>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" aria-label="Open listing on eBay">eBay ↗</a>` : ""}</td></tr>`; };
+    return `<tr><td class="n ${good ? "good" : ""}">${priceBtn(x, { key: "ls-" + (x.item_id || x.url), pop: true, compact: true, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested" })}</td><td>${esc(x.seller || "?")}<small>${fb(x)}</small>${x.title ? `<small class="lt">${esc(x.title)}</small>` : ""}${warnFlags(x).length ? `<div>${badges({ ...x, shipping_unknown: false })}</div>` : ""}</td><td class="hide-s">${esc(x.condition || "")}</td><td class="n ${vs != null && vs < 0 ? "good" : ""}">${pct(vs)}</td><td>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" aria-label="Open listing on eBay">eBay ↗</a>` : ""}</td></tr>`; };
   const listings = c.listings.length ? c.listings.slice(0, 10).map(row).join("") + (c.listings.length > 10 ? `</tbody></table><details class="more-l"><summary>Show ${c.listings.length - 10} more listings</summary><table class="tbl lst"><tbody>${c.listings.slice(10).map(row).join("")}` : "") : "";
   const tgt = c.target.buy != null ? `<div class="st"><small>YOUR BUY TARGET</small><b class="yel">${money(c.target.buy)}</b>${c.med7 ? pct((c.med7 / c.target.buy - 1) * 100) + " to go" : ""}</div>`
     : c.sug.buy == null ? `<div class="st"><small>SUGGESTED BUY-BELOW <span class="sugg">research</span></small><b>—</b>no suggested zone yet<br><small>no target set</small></div>`
@@ -126,10 +130,10 @@ function vCard(id) {
   <div class="stats"><div class="st"><small>7D SOLD MEDIAN</small><b>${money(c.med7)}</b>${c.s7 != null ? c.s7 + " sales" : ""}${c.trend ? ` · trend <b class="inl">${esc(c.trend)}</b>` : ""}<br>30d ${money(c.med30)}${c.s30 != null ? ` (${c.s30} sales)` : ""}${c.lastSale ? ` · last $${esc(c.lastSale.replace("@", " on "))}` : ""}</div>
   <div class="st"><small>LOWEST REPUTABLE ASK</small><b class="pink">${money(l?.total)}</b>${c.askVsMed != null ? pct(c.askVsMed, 1) + " vs median" : "no listing"}</div>${tgt}
   <div class="st"><small>ACTIVE (REPUTABLE)</small><b>${c.activeCount ?? "—"}</b>${c.ebayTotal != null ? `of ${c.ebayTotal.toLocaleString()} on eBay · ` : ""}scanned ${tCT(c.scanned_at)}</div></div>
-  ${l ? `<div class="lowl">Lowest reputable: ${l.title ? `“${esc(l.title)}” ` : ""}<span class="badges">${legit(l)}${badges(l)}</span>${l.url ? ` <a href="${esc(l.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</div>` : ""}
+  ${l ? `<div class="lowl"><div class="lowp">Lowest reputable ${priceBtn(l, { key: "low-" + c.id, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested buy-below" })}</div>${l.title ? `“${esc(l.title)}” ` : ""}<span class="badges">${legit(l)}${badges(l)}</span>${l.url ? ` <a href="${esc(l.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</div>` : ""}
   <div class="cardgrid"><section class="panel">${priceChart(c, small())}<p class="note">Dots are individual eBay sold comps${c.outliers ? ` (${c.outliers} outlier${c.outliers > 1 ? "s" : ""} dropped from the median)` : ""}. Medians come from ${c.histCount} history snapshot${c.histCount === 1 ? "" : "s"}${c.histDate ? ` (${esc(c.histDate)})` : ""}; the trend line will fill in as daily snapshots accumulate.</p></section>
   <div><section class="panel call" style="border-color:${phaseColor(c.sug.phase)}">${c.sug.call ? `<h2 style="color:${phaseColor(c.sug.phase)}">Research: ${esc((c.sug.phase || "").toUpperCase())}</h2><p>${esc(c.sug.call)}</p>${c.sug.prediction ? `<p class="pred">${esc(c.sug.prediction)}</p>` : ""}<p>confidence <b>${esc(c.sug.conf || "?")}</b> · call ${esc(c.sug.date || "")} · review by ${esc(c.sug.review_by || "—")}</p>${c.sug.links.length ? `<details><summary>${c.sug.links.length} sources</summary>${c.sug.links.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, "").slice(0, 60))}</a>`).join("")}</details>` : ""}` : `<p class="empty">No research call for this card yet.</p>`}</section>
-  ${c.auctions.length ? `<section class="panel"><h2>⏱ Auctions ending soon</h2><table class="tbl lst"><tbody>${c.auctions.map((x) => `<tr><td class="n">${money(x.total)}<small>${x.bids ?? 0} bid${x.bids === 1 ? "" : "s"}</small></td><td>${esc(x.seller || "?")}<small>${fb(x)}</small>${x.title ? `<small class="lt">${esc(x.title)}</small>` : ""}</td><td><small>ends</small>${esc(dCT(x.end_date))}</td><td>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</td></tr>`).join("")}</tbody></table></section>` : ""}
+  ${c.auctions.length ? `<section class="panel"><h2>⏱ Auctions ending soon</h2><table class="tbl lst"><tbody>${c.auctions.map((x) => `<tr><td class="n">${priceBtn(x, { key: "au-" + (x.item_id || x.url), pop: true, compact: true, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested" })}<small>${x.bids ?? 0} bid${x.bids === 1 ? "" : "s"}</small></td><td>${esc(x.seller || "?")}<small>${fb(x)}</small>${x.title ? `<small class="lt">${esc(x.title)}</small>` : ""}</td><td><small>ends</small>${esc(dCT(x.end_date))}</td><td>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</td></tr>`).join("")}</tbody></table></section>` : ""}
   <section class="panel"><h2>Live BIN listings <small>reputable sellers</small></h2>${listings ? `<table class="tbl lst"><tbody>${listings}</tbody></table>${c.listings.length > 10 ? "</details>" : ""}` : `<p class="empty">No reputable listings in the last scan.</p>`}</section></div></div>`;
 }
 
@@ -146,7 +150,7 @@ function vTeam() {
 
 // ---------- render / boot
 let lastKey = "", lastHtml = "";
-const detKey = (d) => (d.querySelector("summary")?.textContent || "").replace(/\d+/g, "#").slice(0, 60);
+const detKey = (d) => d.dataset.k || (d.querySelector("summary")?.textContent || "").replace(/\d+/g, "#").slice(0, 60);
 function render(force) {
   if (!S.model) return;
   const [r, arg] = route(), tab = r === "card" ? "cards" : r;
@@ -170,6 +174,7 @@ function render(force) {
   bind();
 }
 function bind() {
+  document.querySelectorAll("details.pt > summary").forEach((sm) => (sm.onclick = (e) => { e.preventDefault(); e.stopPropagation(); const d = sm.parentElement; d.open = !d.open; }));
   const q = document.getElementById("q");
   if (q) { q.oninput = () => { S.q = q.value; const pos = q.selectionStart; render(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos); }; }
   document.querySelectorAll("[data-lang]").forEach((b) => (b.onclick = () => { S.lang = b.dataset.lang; render(); }));
