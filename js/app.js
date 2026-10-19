@@ -1,44 +1,212 @@
-// Placeholder UI. Dashboard Designer replaces this; keep using window.PokeData for data.
-(function () {
-  const $ = (id) => document.getElementById(id);
-  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const money = (v) => (v == null ? "—" : "$" + Number(v).toFixed(2));
-  const when = (t) => (t ? new Date(t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
-  const safeUrl = (u) => (/^https:\/\//.test(u || "") ? u : null);
-  const link = (u, txt) => (safeUrl(u) ? `<a href="${esc(u)}" target="_blank" rel="noopener">${txt}</a>` : "");
-  let stop = null;
+import { CONFIG } from "./cfg.js";
+import * as D from "./data.js";
+import { buildModel, deals, warnFlags } from "./derive.js";
+import { spark, priceChart, radar, phaseColor } from "./charts.js";
+import { esc, money, pct, tCT, dCT, ago } from "./util.js";
 
-  function show(view) { for (const v of ["loading", "login", "denied", "app"]) $(v).hidden = v !== view; }
+const TEAM = [
+  { name: "Pokemon Lead", role: "Coordinator: splits work, keeps the team on track", color: "#ffcb05" },
+  { name: "Price Scout", role: "eBay price checks (sold + active listings)", color: "#3b9cff" },
+  { name: "Alert Desk", role: "Alerts you when prices cross your targets", color: "#ff4d4d" },
+  { name: "Market Researcher", role: "Market research, phases, suggested zones", color: "#5ad17a" },
+  { name: "Dashboard Designer", role: "Designs dashboards & decision tools", color: "#c86bff" },
+];
+const who = (n) => TEAM.find((t) => t.name === n)?.color || "#a9a3c9";
+const S = { model: null, alerts: [], feed: [], scans: [], reports: [], error: null, q: "", sort: "dist", lang: "all" };
+const $app = document.getElementById("app");
+const small = () => matchMedia("(max-width:600px)").matches;
+const route = () => (location.hash.replace(/^#\/?/, "") || "deals").split("/");
 
-  function render(s) {
-    $("status").textContent = `Synced ${when(s.last_sync && s.last_sync.ts)} · last scan ${when(s.last_scan && s.last_scan.ts)}`;
-    $("team").innerHTML = s.team.map((b) => `<li style="border-color:${esc(b.color)}"><b>${esc(b.name)}</b> <small>${esc(b.role)}</small><br><small>${when(b.last_ts)}: ${esc((b.last_text || "").slice(0, 140))}</small></li>`).join("");
-    $("deals").innerHTML = s.deals.length ? s.deals.slice(0, 50).map((d) => `<li><b>${esc(d.card)}</b> ${esc(d.language)} #${esc(d.number)} — <b>${money(d.total)}</b> (${esc(d.side)} ${money(d.target)}, sold med ${money(d.sold_median)}) · ${esc(d.seller)} (${esc(d.seller_feedback)}) ${link(d.url, "View ↗")}</li>`).join("")
-      : `<li class="empty">${s.watchlist.some((c) => c.buy_below != null || c.sell_above != null) ? "No reputable listings past your targets right now." : "Set buy/sell targets to see deals."}</li>`;
-    $("alerts").innerHTML = s.alerts.length ? s.alerts.map((a) => `<li><b>${esc(a.card)}</b> ${esc(a.language)} — ${esc(a.price_kind)} ${money(a.value)} ${esc(a.direction)} ${money(a.target)} · ${when(a.ts)} ${link(a.link, "↗")}</li>`).join("") : `<li class="empty">No alerts yet.</li>`;
-    $("watch").innerHTML = s.watchlist.map((c) => `<tr><td><b>${esc(c.name)}</b><br><small>${esc(c.language)} #${esc(c.number)}</small></td>
-      <td>${money(c.sold_median)}<br><small>${c.sold ? esc(c.sold.n) + " sales" : ""}</small></td>
-      <td>${c.lowest_active ? money(c.lowest_active.total) + " " + link(c.lowest_active.url, "↗") + `<br><small>${esc(c.lowest_active.seller)} (${esc(c.lowest_active.seller_feedback)})</small>` : "—"}</td>
-      <td>${money(c.buy_below)} / ${money(c.sell_above)}<br><small>${esc(c.status)}${c.active_status ? " · active " + esc(c.active_status) : ""}</small></td></tr>`).join("");
-    $("feed").innerHTML = s.feed.slice(0, 100).map((e) => `<li><small>${when(e.ts)}</small> <b>${esc(e.from_bot)}</b> → ${esc(e.to_bot)}: ${esc(e.text)}</li>`).join("");
-    $("report").textContent = s.report ? `${s.report.name} (${s.report.date})\n\n${s.report.markdown}` : "No research report yet.";
+// ---------- shell
+function shell(body, tab) {
+  const scan = S.scans.at(-1), act = S.model?.cards.map((c) => c.scanned_at).filter(Boolean).sort().at(-1);
+  const sold = S.model?.cards.flatMap((c) => c.sales.slice(-1).map((s) => s.sold_date)).sort().at(-1);
+  const tabs = [["deals", "💸", "Deals"], ["radar", "📡", "Radar"], ["cards", "📈", "Cards"], ["team", "💬", "Team"]];
+  const nav = tabs.map(([k, i, l]) => `<a href="#/${k}" class="${tab === k ? "on" : ""}" ${tab === k ? 'aria-current="page"' : ""}><b aria-hidden="true">${i}</b>${l}</a>`).join("");
+  const scanErr = scan?.errors?.length ? ` · <span class="warn">${scan.errors.length} card${scan.errors.length > 1 ? "s" : ""} failed last scan</span>` : "";
+  return `<header class="top"><a class="brand" href="#/deals"><span class="mk" aria-hidden="true">◆</span><span>COMMAND CENTER</span></a>
+    <nav class="topnav">${nav}</nav>
+    <div class="fresh">listings ${act ? `${tCT(act)} <small>(${ago(act)})</small>` : "—"} · sold thru ${sold || "—"}${scanErr}${D.backend()?.signOut ? ` · <button class="link" id="signout">sign out</button>` : ""}</div></header>
+    ${S.error ? `<div class="err" role="alert">Data problem: ${esc(S.error)}</div>` : ""}
+    <main>${body}</main><nav class="tabs">${nav}</nav>`;
+}
+const cardLink = (c, inner) => `<a class="cl" href="#/card/${encodeURIComponent(c.id)}">${inner}</a>`;
+const cname = (c) => `<span class="lg">${c.lang}</span> <b>${esc(c.name)}</b> <small>${esc(c.number)}${c.variant ? " · " + esc(c.variant) : ""}</small>`;
+const phase = (p) => (p ? `<span class="ph" style="background:${phaseColor(p)}">${esc(p)}</span>` : `<span class="ph none">no call</span>`);
+const badges = (l) => { const w = warnFlags(l); return (w.length ? w.map((f) => `<span class="flag" title="Scanner flag: check before buying">⚠ ${esc(f)}</span>`).join("") : "") + (l?.shipping_unknown ? `<span class="ship" title="Total excludes shipping">+ shipping not quoted</span>` : ""); };
+const legit = (l) => (warnFlags(l).length ? `<span class="flag">⚠ check listing</span>` : `<span class="okb">✓ seller ${l?.feedback ?? "?"} fb, no flags</span>`);
+const fb = (l) => (l?.feedback != null ? `${(+l.feedback).toLocaleString()} fb${l.feedback_pct ? " · " + esc(l.feedback_pct) + (String(l.feedback_pct).includes("%") ? "" : "%") : ""}` : "fb n/a");
+
+// ---------- Deals
+function dealCard(c, kind) {
+  const ref = kind === "target" ? c.target.buy : c.sug.buy, l = c.lowest;
+  const under = c.med7 ? (1 - l.total / c.med7) * 100 : null;
+  return `<article class="deal ${kind}">${cardLink(c, `<div class="tag">${kind === "target" ? "✅ UNDER YOUR TARGET" : "💡 UNDER SUGGESTED ZONE · not an alert"}</div>
+    <div class="dt">${cname(c)}</div>${l.title ? `<div class="ltitle">“${esc(l.title)}”</div>` : ""}<div class="big">${money(l.total)}${l.shipping_unknown ? `<small class="shipq">+ship?</small>` : ""}</div>
+    <div class="vs">7d sold median <b>${money(c.med7)}</b> · ${kind === "target" ? "your target" : "suggested buy-below"} <b>${money(ref)}</b></div>
+    ${under != null ? `<div class="pill">▼ ${under.toFixed(0)}% under market</div>` : ""}
+    <div class="sel">seller <b>${esc(l.seller || "?")}</b> · ${fb(l)} · ${esc(l.condition || "")}</div><div class="badges">${legit(l)}${badges(l)}</div>`)}
+    ${l.url ? `<a class="ext" href="${esc(l.url)}" target="_blank" rel="noopener">Open on eBay ↗</a>` : ""}</article>`;
+}
+function vDeals() {
+  const m = S.model, d = deals(m.cards);
+  let head, sub;
+  if (d.confirmed.length) { head = `<em>YES</em> — ${d.confirmed.length} listing${d.confirmed.length > 1 ? "s" : ""} under your target`; }
+  else if (!d.anyTargets) { head = `<em class="amber">NO TARGETS SET</em> — no confirmed deals yet`; }
+  else head = `<em class="no">NO</em> — nothing under your targets right now`;
+  const cl = d.closest ? `Closest${d.confirmed.length ? " other" : ""}: ${cardLink(d.closest.c, `<b>${esc(d.closest.c.name)} ${d.closest.c.lang} ${esc(d.closest.c.number)}</b>`)} — lowest ask ${money(d.closest.c.lowest.total)} is ${pct(d.closest.gap)} vs ${d.closest.c.src === "target" ? "your target" : "suggested"} ${money(d.closest.c.effBuy)}.` : "";
+  sub = !d.anyTargets ? `You haven't set buy_below / sell_above in the watchlist, so nothing can be confirmed or alerted. ${d.suggested.length ? `${d.suggested.length} listing${d.suggested.length > 1 ? "s are" : " is"} under the researcher's <b>suggested</b> zone — a hint, not a signal.` : "Nothing is under the researcher's suggested zone either."} ${cl}` : cl;
+  const sell = d.sellNow.length ? `<section><h2>📤 Above your sell target</h2><div class="deals">${d.sellNow.map((c) => cardLink(c, `<article class="deal sell"><div class="tag">SELL SIGNAL</div><div class="dt">${cname(c)}</div><div class="big">${money(c.med7)}</div><div class="vs">7d median vs your sell target ${money(c.target.sell)}</div></article>`)).join("")}</div></section>` : "";
+  const bulk = d.bulk.length ? `<details class="bulk"><summary>🧺 Bulk bin — ${d.bulk.length} sub-${money(CONFIG.MIN_CARD_VALUE)} card${d.bulk.length > 1 ? "s" : ""} at/under suggested buy-below</summary><div class="bulkl">${d.bulk.map((c) => cardLink(c, `${esc(c.name)} ${c.lang} ${esc(c.number)} <b>${money(c.lowest.total)}</b> <small>med ${money(c.med7)}</small>`)).join("")}</div></details>` : "";
+  const near = m.cards.filter((c) => c.dist != null).sort((a, b) => a.dist - b.dist).slice(0, 12);
+  const rows = near.map((c) => `<tr onclick="location.hash='#/card/${encodeURIComponent(c.id)}'"><td>${cardLink(c, cname(c))}</td><td>${phase(c.sug.phase)}</td><td class="n">${money(c.med7)}</td>
+    <td class="n">${money(c.effBuy)}<small class="src ${c.src}">${c.src === "target" ? "yours" : "sugg."}</small></td>
+    <td><div class="bar"><i style="width:${Math.max(4, Math.min(100, 100 - c.dist * 2))}%;background:${c.dist <= 10 ? "#2ee6a6" : c.dist <= 30 ? "#ffcb05" : "#ff9f1c"}"></i></div><small class="n">${c.dist <= 0 ? "in zone" : pct(c.dist) + " above"}</small></td>
+    <td class="hide-s">${spark(c.daily.map((x) => x[1]), 90, 24)}</td><td class="n hide-s">${money(c.lowest?.total)}</td><td class="n hide-s">${c.s7 ?? "—"}</td></tr>`).join("");
+  return `${setBanner()}<section class="hero"><h1 class="verdict">${head}</h1><p class="sub">${sub}</p></section>
+    ${d.confirmed.length ? `<section><h2>✅ Under your target <small>confirmed · seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</small></h2><div class="deals">${d.confirmed.map((c) => dealCard(c, "target")).join("")}</div></section>` : ""}
+    ${sell}
+    ${d.suggested.length ? `<section><h2>💡 Under suggested zone <small>researcher's zone, not your target · ${money(CONFIG.MIN_CARD_VALUE)}+ cards · seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</small></h2><div class="deals">${d.suggested.map((c) => dealCard(c, "suggested")).join("")}</div></section>` : ""}
+    ${bulk}
+    <div class="split"><section><h2>🎯 Closest to buy zone</h2><table class="tbl"><thead><tr><th>Card</th><th>Phase</th><th>7d med</th><th>Buy &lt;</th><th>Distance</th><th class="hide-s">Trend</th><th class="hide-s">Low ask</th><th class="hide-s">Sales 7d</th></tr></thead><tbody>${rows}</tbody></table></section>
+    <aside>${alertsBox(d.anyTargets)}<section class="panel"><h2>📡 Team live <a class="more" href="#/team">all →</a></h2>${feedList(6)}</section></aside></div>`;
+}
+function setBanner() {
+  const sc = S.model.setCall; if (!sc) return "";
+  return `<div class="setban" style="border-color:${phaseColor(sc.phase)}"><b style="color:${phaseColor(sc.phase)}">SET-WIDE: ${esc((sc.phase || "?").toUpperCase())}</b> <span>${esc(sc.prediction || sc.call || "")}</span> <small>confidence ${esc(sc.confidence || "?")} · ${esc(sc.date || "")}</small></div>`;
+}
+const KIND = { sold_median: "7d sold median", lowest_active: "lowest active listing" };
+function alertsBox(anyTargets) {
+  const a = S.alerts.slice(-5).reverse();
+  return `<section class="panel alerts"><h2>🚨 Alerts</h2>${a.length ? a.map((x) => `<div class="al"><b>${x.direction === "above_sell" ? "📤 SELL" : "📥 BUY"}</b> ${esc(x.card)} ${esc(x.number || "")} — ${esc(KIND[x.price_kind] || x.price_kind || "price")} ${money(x.value)} is ${x.direction === "above_sell" ? "above your sell" : "below your buy"} target ${money(x.target)} <small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>`).join("")
+    : `<p class="empty">${anyTargets ? "No alerts fired yet." : "No alerts yet — set buy_below / sell_above targets to enable."}</p>`}</section>`;
+}
+function feedList(n) {
+  const f = S.feed.slice(-n).reverse();
+  return f.length ? f.map((x) => `<div class="fi" style="border-color:${who(x.from)}"><b style="color:${who(x.from)}">${esc(x.from)}</b>${x.to ? ` <small>→ ${esc(x.to)}</small>` : ""} <i>${tCT(x.ts)}</i><p>${esc(x.text)}</p></div>`).join("") : `<p class="empty">No team messages yet.</p>`;
+}
+
+// ---------- Radar
+function vRadar() {
+  const { svg, inz, out } = radar(S.model.cards, small());
+  const list = [...inz, ...out].sort((a, b) => a.dist - b.dist).map((c) => `<li>${cardLink(c, `<span class="nm">${cname(c)}</span>${phase(c.sug.phase)}<span class="d n">${c.dist <= 2 ? "in zone" : "+" + c.dist.toFixed(0) + "%"}</span>`)}</li>`).join("");
+  const lanes = ["hype", "declining", "basing", "recovering"].map((p) => { const cs = S.model.cards.filter((c) => c.sug.phase === p).sort((a, b) => (a.dist ?? 999) - (b.dist ?? 999));
+    return `<div class="lane" style="border-color:${phaseColor(p)}"><h3 style="color:${phaseColor(p)}">${p.toUpperCase()} <em>${cs.length}</em></h3>${cs.map((c) => cardLink(c, `<div class="li"><b>${esc(c.name)}</b> <small>${c.lang} ${esc(c.number)}</small><span class="n">${money(c.med7)}</span></div>`)).join("") || `<p class="empty">none yet${p === "recovering" ? " — first card here is a bottom signal" : ""}</p>`}</div>`; }).join("");
+  const noZone = S.model.cards.filter((c) => c.dist == null);
+  return `${setBanner()}<section class="hero"><h1 class="verdict">Bottom radar</h1><p class="sub">Centre = buy zone (your target if set, otherwise the researcher's <b>suggested</b> buy-below). Distance = how far the 7-day sold median sits above it. Colour = research phase.</p></section>
+  <div class="radarwrap"><div class="rbox">${svg}<div class="legend">${["hype", "declining", "basing", "recovering"].map((p) => `<span><i style="background:${phaseColor(p)}"></i>${p}</span>`).join("")}<span>dot size = card value</span></div></div>
+  <section class="panel"><h2>Closest to zone</h2><ol class="rlist">${list}</ol>${noZone.length ? `<p class="empty">${noZone.length} card(s) have no zone yet: ${noZone.map((c) => esc(c.name) + " " + esc(c.number)).join(", ")}</p>` : ""}</section></div>
+  <h2>Phase lanes <small>cards move left → right as they bottom out</small></h2><div class="lanes">${lanes}</div>`;
+}
+
+// ---------- Cards list
+function vCards() {
+  let cs = S.model.cards.filter((c) => (S.lang === "all" || c.lang === S.lang) && (!S.q || (c.full + " " + c.number).toLowerCase().includes(S.q.toLowerCase())));
+  const sorters = { dist: (a, b) => (a.dist ?? 999) - (b.dist ?? 999), value: (a, b) => (b.med7 || 0) - (a.med7 || 0), name: (a, b) => a.name.localeCompare(b.name) };
+  cs.sort(sorters[S.sort]);
+  return `<section class="hero"><h1 class="verdict">All cards <small>${S.model.cards.length}</small></h1></section>
+  <div class="filters"><input id="q" type="search" placeholder="Search card or number" value="${esc(S.q)}" aria-label="Search cards">
+  <div class="seg">${["all", "EN", "JP"].map((l) => `<button data-lang="${l}" class="${S.lang === l ? "on" : ""}">${l}</button>`).join("")}</div>
+  <select id="sort" aria-label="Sort">${[["dist", "Closest to zone"], ["value", "Highest value"], ["name", "Name"]].map(([k, l]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask ${money(c.lowest?.total)}</span></div></article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
+}
+
+// ---------- Card page
+function vCard(id) {
+  const c = S.model.byId[decodeURIComponent(id || "")];
+  if (!c) return `<section class="hero"><h1 class="verdict">Card not found</h1><p class="sub"><a href="#/cards">Back to all cards</a></p></section>`;
+  const l = c.lowest;
+  const listings = c.listings.length ? c.listings.map((x) => { const vs = c.med7 && x.total != null ? (x.total / c.med7 - 1) * 100 : null; const good = c.effBuy && x.total <= c.effBuy;
+    return `<tr><td class="n ${good ? "good" : ""}">${money(x.total)}${x.shipping_unknown ? `<small class="shipq">+ship?</small>` : ""}</td><td>${esc(x.seller || "?")}<small>${fb(x)}</small>${x.title ? `<small class="lt">${esc(x.title)}</small>` : ""}${warnFlags(x).length ? `<div>${badges({ ...x, shipping_unknown: false })}</div>` : ""}</td><td class="hide-s">${esc(x.condition || "")}</td><td class="n ${vs != null && vs < 0 ? "good" : ""}">${pct(vs)}</td><td>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" aria-label="Open listing on eBay">eBay ↗</a>` : ""}</td></tr>`; }).join("") : "";
+  const tgt = c.target.buy != null ? `<div class="st"><small>YOUR BUY TARGET</small><b class="yel">${money(c.target.buy)}</b>${c.med7 ? pct((c.med7 / c.target.buy - 1) * 100) + " to go" : ""}</div>`
+    : c.sug.buy == null ? `<div class="st"><small>SUGGESTED BUY-BELOW <span class="sugg">research</span></small><b>—</b>no suggested zone yet<br><small>no target set</small></div>`
+    : `<div class="st"><small>SUGGESTED BUY-BELOW <span class="sugg">research</span></small><b class="grn">${money(c.sug.buy)}</b>${c.dist != null ? (c.dist <= 0 ? "median in zone" : pct(c.dist) + " to go") : "no zone yet"}<br><small>no target set</small></div>`;
+  return `<a class="back" href="#/cards">← All cards</a><section class="cardhead"><h1>${esc(c.name)} <span>${esc(c.number)}</span></h1><p>${c.variant ? esc(c.variant) + " · " : ""}${c.lang === "JP" ? "Japanese" : "English"} · raw · eBay sold comps, sellers ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</p></section>
+  <div class="stats"><div class="st"><small>7D SOLD MEDIAN</small><b>${money(c.med7)}</b>${c.s7 != null ? c.s7 + " sales" : ""}${c.trend ? ` · trend <b class="inl">${esc(c.trend)}</b>` : ""}<br>30d ${money(c.med30)}${c.s30 != null ? ` (${c.s30} sales)` : ""}${c.lastSale ? ` · last $${esc(c.lastSale.replace("@", " on "))}` : ""}</div>
+  <div class="st"><small>LOWEST REPUTABLE ASK</small><b class="pink">${money(l?.total)}</b>${c.askVsMed != null ? pct(c.askVsMed, 1) + " vs median" : "no listing"}</div>${tgt}
+  <div class="st"><small>ACTIVE (REPUTABLE)</small><b>${c.activeCount ?? "—"}</b>${c.ebayTotal != null ? `of ${c.ebayTotal.toLocaleString()} on eBay · ` : ""}scanned ${tCT(c.scanned_at)}</div></div>
+  ${l ? `<div class="lowl">Lowest reputable: ${l.title ? `“${esc(l.title)}” ` : ""}<span class="badges">${legit(l)}${badges(l)}</span>${l.url ? ` <a href="${esc(l.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</div>` : ""}
+  <div class="cardgrid"><section class="panel">${priceChart(c, small())}<p class="note">Dots are individual eBay sold comps${c.outliers ? ` (${c.outliers} outlier${c.outliers > 1 ? "s" : ""} dropped from the median)` : ""}. Medians come from ${c.histCount} history snapshot${c.histCount === 1 ? "" : "s"}${c.histDate ? ` (${esc(c.histDate)})` : ""}; the trend line will fill in as daily snapshots accumulate.</p></section>
+  <div><section class="panel call" style="border-color:${phaseColor(c.sug.phase)}">${c.sug.call ? `<h2 style="color:${phaseColor(c.sug.phase)}">Research: ${esc((c.sug.phase || "").toUpperCase())}</h2><p>${esc(c.sug.call)}</p>${c.sug.prediction ? `<p class="pred">${esc(c.sug.prediction)}</p>` : ""}<p>confidence <b>${esc(c.sug.conf || "?")}</b> · call ${esc(c.sug.date || "")} · review by ${esc(c.sug.review_by || "—")}</p>${c.sug.links.length ? `<details><summary>${c.sug.links.length} sources</summary>${c.sug.links.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, "").slice(0, 60))}</a>`).join("")}</details>` : ""}` : `<p class="empty">No research call for this card yet.</p>`}</section>
+  ${c.auctions.length ? `<section class="panel"><h2>⏱ Auctions ending soon</h2><table class="tbl lst"><tbody>${c.auctions.map((x) => `<tr><td class="n">${money(x.total)}<small>${x.bids ?? 0} bid${x.bids === 1 ? "" : "s"}</small></td><td>${esc(x.seller || "?")}<small>${fb(x)}</small>${x.title ? `<small class="lt">${esc(x.title)}</small>` : ""}</td><td><small>ends</small>${esc(dCT(x.end_date))}</td><td>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</td></tr>`).join("")}</tbody></table></section>` : ""}
+  <section class="panel"><h2>Live BIN listings <small>reputable sellers</small></h2>${listings ? `<table class="tbl lst"><tbody>${listings}</tbody></table>` : `<p class="empty">No reputable listings in the last scan.</p>`}</section></div></div>`;
+}
+
+// ---------- Team
+function vTeam() {
+  const last = {}; for (const f of S.feed) last[f.from] = f;
+  const scan = S.scans.at(-1);
+  return `<section class="hero"><h1 class="verdict">Team</h1><p class="sub">Live bot chatter. ${D.backend().kind === "supabase" ? "Realtime." : `Refreshes every ${CONFIG.POLL_MS / 1000}s.`}</p></section>
+  <div class="roster">${TEAM.map((t) => `<div class="mem" style="border-color:${t.color}"><b style="color:${t.color}">${esc(t.name)}</b><small>${esc(t.role)}</small><span>${last[t.name] ? "active " + ago(last[t.name].ts) : "no messages yet"}</span></div>`).join("")}</div>
+  <div class="split"><section class="panel"><h2>📡 Feed</h2>${feedList(80)}</section>
+  <aside>${scan ? `<section class="panel"><h2>Last scan</h2><p>${dCT(scan.ts)} · ${scan.cards_scanned}/${scan.cards_requested} cards · API ${scan.calls_today}/${scan.daily_limit} today</p>${scan.errors?.length ? `<p class="warn">${scan.errors.length} errors: ${scan.errors.map((e) => esc(e.card_id)).join(", ")}</p>` : ""}</section>` : ""}
+  <section class="panel"><h2>Reports</h2>${S.reports.length ? S.reports.slice().reverse().map((r) => `<details><summary>${esc(r.title)} <small>${esc(r.date || "")}</small></summary><pre>${esc(r.body)}</pre></details>`).join("") : `<p class="empty">No reports yet.</p>`}</section></aside></div>`;
+}
+
+// ---------- render / boot
+let lastKey = "", lastHtml = "";
+const detKey = (d) => (d.querySelector("summary")?.textContent || "").replace(/\d+/g, "#").slice(0, 60);
+function render(force) {
+  if (!S.model) return;
+  const [r, arg] = route(), tab = r === "card" ? "cards" : r;
+  const views = { deals: vDeals, radar: vRadar, cards: vCards, card: () => vCard(arg), team: vTeam };
+  const y = window.scrollY, key = location.hash;
+  const html = shell((views[r] || vDeals)(), views[r] ? tab : "deals");
+  if (key === lastKey && html === lastHtml) return;           // nothing changed: leave the DOM alone
+  // Preserve UI state across data refreshes: open <details>, horizontal strips, focused input.
+  const same = key === lastKey;
+  const openSet = same ? new Set([...$app.querySelectorAll("details[open]")].map(detKey)) : new Set();
+  const scrollX = same ? [...$app.querySelectorAll(".deals,.lanes,.rlist")].map((e) => [e.scrollLeft, e.scrollTop]) : [];
+  $app.innerHTML = html; lastHtml = html;
+  if (same) {
+    $app.querySelectorAll("details").forEach((d) => { if (openSet.has(detKey(d))) d.open = true; });
+    $app.querySelectorAll(".deals,.lanes,.rlist").forEach((e, i) => { if (scrollX[i]) { e.scrollLeft = scrollX[i][0]; e.scrollTop = scrollX[i][1]; } });
   }
-
-  async function route(session) {
-    if (stop) { stop(); stop = null; }
-    if (!session) return show("login");
-    $("who").textContent = session.user.email;
-    try { if (!(await PokeData.auth.hasAccess())) return show("denied"); } catch (e) { return show("denied"); }
-    show("app");
-    stop = PokeData.subscribe((s, err) => { if (err) $("status").textContent = "Connection problem, retrying… " + (err.message || err); else render(s); });
+  if (key !== lastKey) window.scrollTo(0, 0); else window.scrollTo(0, y);
+  lastKey = key;
+  document.title = `${{ deals: "Deals", radar: "Radar", cards: "Cards", card: S.model.byId[decodeURIComponent(arg || "")]?.name || "Card", team: "Team" }[r] || "Deals"} · Command Center`;
+  bind();
+}
+function bind() {
+  const q = document.getElementById("q");
+  if (q) { q.oninput = () => { S.q = q.value; const pos = q.selectionStart; render(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos); }; }
+  document.querySelectorAll("[data-lang]").forEach((b) => (b.onclick = () => { S.lang = b.dataset.lang; render(); }));
+  const so = document.getElementById("sort"); if (so) so.onchange = () => { S.sort = so.value; render(); };
+  const out = document.getElementById("signout"); if (out) out.onclick = async () => { await D.backend().signOut(); location.reload(); };
+}
+async function loadAll() {
+  try {
+    const [watchlist, sold, active, history, calls, scans, reports] = await Promise.all([D.getWatchlist(), D.getSoldSales(), D.getActiveSnapshot(), D.getCardHistory(), D.getResearchCalls(), D.getScans(), D.getReports()]);
+    S.model = buildModel({ watchlist, sold, active, history, calls }); S.scans = scans; S.reports = reports; S.error = null;
+  } catch (e) { console.error(e); S.error = e.message; if (!S.model) { $app.innerHTML = `<div class="center"><h1>Couldn't load data</h1><p>${esc(e.message)}</p></div>`; return; } }
+  render();
+}
+function signInScreen(msg) {
+  $app.innerHTML = `<div class="center signin"><div class="mk big" aria-hidden="true">◆</div><h1>Command Center</h1><p>Sign in with your email — we'll send a magic link.</p>
+  <form id="si"><input type="email" id="em" required placeholder="you@example.com" autocomplete="email" aria-label="Email"><button>Send link</button></form><p class="msg">${esc(msg || "")}</p></div>`;
+  document.getElementById("si").onsubmit = async (e) => { e.preventDefault(); const btn = e.target.querySelector("button"); btn.disabled = true;
+    try { const r = await D.backend().signIn(document.getElementById("em").value); if (r && r.error) throw r.error; signInScreen("Check your inbox for the sign-in link."); }
+    catch (err) { signInScreen(err.message || String(err)); } };
+}
+async function start() {
+  await loadAll();
+  D.subscribeFeed((rows) => { S.feed = rows; render(); });
+  D.subscribeAlerts((rows) => { S.alerts = rows; render(); });
+  let t; D.subscribeData(() => { clearTimeout(t); t = setTimeout(loadAll, 300); });   // realtime: listings/scans/watchlist changed
+  setInterval(loadAll, CONFIG.DATA_POLL_MS);
+  window.addEventListener("hashchange", () => render());
+  matchMedia("(max-width:600px)").addEventListener("change", () => render());
+}
+(async () => {
+  const be = await D.init();
+  if (be.needsAuth) {
+    const s = await be.session();
+    if (!s) { signInScreen(); be.onAuth((s2) => { if (s2) location.reload(); }); return; }
+    if (be.hasAccess && !(await be.hasAccess().catch(() => false))) {
+      $app.innerHTML = `<div class="center signin"><div class="mk big" aria-hidden="true">◆</div><h1>No access</h1><p>${esc(s.user?.email || "This account")} isn't on the allowlist.</p><p><button id="so2">Sign out</button></p></div>`;
+      document.getElementById("so2").onclick = async () => { await be.signOut(); location.reload(); }; return;
+    }
   }
-
-  $("loginForm").addEventListener("submit", async (ev) => {
-    ev.preventDefault(); $("loginMsg").textContent = "Sending…";
-    try { await PokeData.auth.sendMagicLink($("email").value); $("loginMsg").textContent = "Check your email for the sign-in link. Open it on this device."; }
-    catch (e) { $("loginMsg").textContent = "Couldn't send the link: " + (e.message || e); }
-  });
-  for (const id of ["signOut", "signOut2"]) $(id).addEventListener("click", () => PokeData.auth.signOut());
-  PokeData.auth.onChange((s) => route(s));
-  PokeData.auth.session().then(route);
+  start();
 })();
+if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch((e) => console.warn("sw", e)));
