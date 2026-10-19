@@ -30,9 +30,12 @@ export function buildModel(t) {
     const auctions = (a.auctions_ending_soon || []).map(mapListing).filter(Boolean).sort((x, y) => (x.end_date || "").localeCompare(y.end_date || ""));
     const lowestTotal = num(a.lowest_total) ?? lowest?.total ?? null;
     const effBuy = target.buy ?? sug.buy, src = target.buy != null ? "target" : sug.buy != null ? "suggested" : null;
+    const ref = { reference: num(w.reference), soldMed: num(w.sold_median_recent), win: num(w.sold_window_days), soldN: num(w.sold_n), p25: num(w.active_p25), activeN: num(w.active_n), k: num(w.k),
+      auto: num(w.auto_buy_below), manual: num(w.manual_buy_below), source: w.target_source || null, trend7: num(w.sold_trend_7d_pct), updated: w.reference_updated_at || null };
+    const wflags = Array.isArray(w.flags) ? w.flags : [];
     const [nm, variant] = short(w.name);
     return { id: w.id, name: nm, variant, full: w.name, number: w.number, lang: /jap/i.test(w.language || "") ? "JP" : "EN", rarity: w.rarity,
-      target, sug, effBuy, src, med7, med30: num(h.median_30d), s7: num(h.sales_7d), s30: num(h.sales_30d), trend: h.trend || null,
+      target, sug, effBuy, src, ref, wflags, med7, med30: num(h.median_30d), s7: num(h.sales_7d), s30: num(h.sales_30d), trend: h.trend || null,
       lastSale: h.last_sale || null, outliers: num(h.outliers_dropped), ebayTotal: num(h.ebay_total) ?? num(a.ebay_total), histDate: h.date || null, histCount: t.history.filter((r) => r.card_id === w.id).length, sales: ss, daily,
       lowest, lowestTotal, listings, auctions, binCount: num(a.bin_count), auctionCount: num(a.auction_count), scanned_at: a.scanned_at, activeCount: num(a.reputable_count) ?? num(h.active_count),
       dist: effBuy && med7 ? ((med7 - effBuy) / effBuy) * 100 : null,
