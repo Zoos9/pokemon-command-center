@@ -43,23 +43,22 @@ const fb = (l) => (l?.feedback != null ? `${(+l.feedback).toLocaleString()} fb${
 const FLAG_ICON = { "thin data": "◔", "market dropping": "▼", "still falling": "⇊" };
 const flagBadges = (fl, compact) => (fl || []).map((f) => `<span class="rf ${/thin/i.test(f) ? "amber" : /dropping|falling/i.test(f) ? "red" : "grey"}${compact ? " ic" : ""}" title="${esc(f)}">${compact ? (FLAG_ICON[f] || "⚠") : "⚠ " + esc(f)}</span>`).join("");
 const cardAlertFlags = (c) => [...new Set(S.alerts.filter((a) => alertActive(a) && a.card_id === c.id).flatMap((a) => a.flags || []))];
-// % of reference: from k only when it matches buy/reference; else 80 only if it matches; else omit.
-function refPct(c) {
-  const r = c.ref, bb = r.manual != null ? r.auto : c.target.buy;
-  if (bb == null || !r.reference) return null;
-  const ratio = bb / r.reference;
-  if (r.k != null && Math.abs(r.k - ratio) < 0.006) return Math.round(r.k * 100);
-  if (Math.abs(ratio - 0.8) < 0.006) return 80;
-  return null;
-}
+// reference = lower of sold_median_recent or active_p25 × k (k = sold-to-ask ratio, asks side only); buy_below = target_pct × reference.
+const KIND_BADGE = { manual: ["man", "MANUAL"], auto_sold: ["auto", "AUTO · SOLD"], auto_asks: ["auto", "AUTO · ASKS"] };
 function targetExplainer(c) {
-  const r = c.ref; if (c.target.buy == null || r.reference == null) return "";
-  const manual = r.manual != null, p = refPct(c), autoV = manual ? r.auto : c.target.buy;
-  const badge = `<span class="tsrc ${manual ? "man" : "auto"}" title="${esc(r.source || "")}">${manual ? "manual" : "auto"}</span>`;
-  const basis = `${p != null ? `${p}% of ` : "reference "}${c2(r.reference)} (sold ${c2(r.soldMed)} / asks ${r.p25 != null ? c2(r.p25) : "n/a"})`;
-  const main = manual ? `Target ${c2(c.target.buy)} ${badge} <small class="autov">auto ${c2(autoV)} = ${basis}</small>` : `Target ${c2(c.target.buy)} = ${basis} ${badge}`;
-  const tr = r.trend7 != null ? ` · 7d sold trend <b class="${r.trend7 < 0 ? "neg" : "pos"}">${r.trend7 > 0 ? "+" : ""}${r.trend7.toFixed(1)}%</b>` : " · 7d trend n/a";
-  return `<section class="texp"><div class="tline">${main}</div><div class="tsub">sold: last ${r.win ?? "?"}d, n=${r.soldN ?? "?"} · asks n=${r.activeN ?? "?"}${tr}${r.updated ? ` · updated ${dCT(r.updated)}` : ""}</div>${c.wflags.length ? `<div class="tflags">${flagBadges(c.wflags)}</div>` : ""}${c.sug.buy != null ? `<div class="tsug">Researcher's suggested buy-below ${money(c.sug.buy)}${c.sug.low != null && c.sug.high != null ? ` (zone ${money(c.sug.low)}–${money(c.sug.high)})` : ""} · context only</div>` : ""}</section>`;
+  const r = c.ref; if (c.target.buy == null && r.reference == null) return "";
+  const kind = r.kind || (r.manual != null ? "manual" : null);
+  const [bc, bl] = KIND_BADGE[kind] || ["nod", "no data"];
+  const badge = `<span class="tsrc ${bc}" title="${esc(r.source || "")}">${bl}</span>`;
+  const askAdj = r.p25 != null && r.k != null ? r.p25 * r.k : null;
+  const sold = `<span class="${kind === "auto_sold" ? "won" : ""}">sold ${c2(r.soldMed)}</span>`;
+  const asks = r.p25 == null ? `<span>asks n/a</span>` : `<span class="${kind === "auto_asks" ? "won" : ""}">asks ${c2(r.p25)}${r.k != null ? ` × ${r.k} = ${c2(askAdj)}` : ""}</span>`;
+  const pctTxt = r.pct != null ? `${Math.round(r.pct * 1000) / 10}% of ` : "";
+  const autoV = r.manual != null ? r.auto : c.target.buy;
+  const head = r.manual != null ? `Target ${c2(c.target.buy)} ${badge}<small class="autov">auto ${c2(autoV)} = ${pctTxt}${c2(r.reference)}</small>` : `Target ${c2(c.target.buy)} = ${pctTxt}${c2(r.reference)} ${badge}`;
+  const ref = r.reference != null ? `<div class="tref">reference = lower of ${sold} or ${asks}${kind === "auto_sold" || kind === "auto_asks" ? ` → <b>${c2(r.reference)}</b>` : ""}</div>` : "";
+  const tr = r.trend7 != null ? ` · 7d sold trend <b class="${r.trend7 < 0 ? "neg" : "pos"}">${r.trend7 < 0 ? "▼" : r.trend7 > 0 ? "▲" : "▶"} ${r.trend7 > 0 ? "+" : ""}${r.trend7.toFixed(1)}%</b>` : ` · trend n/a (needs 3+ sales per week)`;
+  return `<section class="texp"><div class="tline">${head}</div>${ref}<div class="tsub">sold: last ${r.win ?? "?"}d, n=${r.soldN ?? "?"} · asks n=${r.activeN ?? "?"}${tr}${r.updated ? ` · updated ${dCT(r.updated)}` : ""}</div>${c.wflags.length ? `<div class="tflags">${flagBadges(c.wflags)}</div>` : ""}${c.sug.buy != null ? `<div class="tsug">Researcher's suggested buy-below ${money(c.sug.buy)}${c.sug.low != null && c.sug.high != null ? ` (zone ${money(c.sug.low)}–${money(c.sug.high)})` : ""} · context only</div>` : ""}</section>`;
 }
 
 // ---------- Deals
@@ -157,7 +156,7 @@ function vCard(id) {
   const row = (x) => { const vs = c.med7 && x.total != null ? (x.total / c.med7 - 1) * 100 : null; const good = c.effBuy && x.total <= c.effBuy;
     return `<tr><td class="n ${good ? "good" : ""}">${priceBtn(x, { key: "ls-" + (x.item_id || x.url), pop: true, compact: true, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested" })}</td><td>${esc(x.seller || "?")}<small>${fb(x)}</small>${x.title ? `<small class="lt">${esc(x.title)}</small>` : ""}${warnFlags(x).length ? `<div>${badges({ ...x, shipping_unknown: false })}</div>` : ""}</td><td class="hide-s">${esc(x.condition || "")}</td><td class="n ${vs != null && vs < 0 ? "good" : ""}">${pct(vs)}</td><td>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener" aria-label="Open listing on eBay">eBay ↗</a>` : ""}</td></tr>`; };
   const listings = c.listings.length ? c.listings.slice(0, 10).map(row).join("") + (c.listings.length > 10 ? `</tbody></table><details class="more-l"><summary>Show ${c.listings.length - 10} more listings</summary><table class="tbl lst"><tbody>${c.listings.slice(10).map(row).join("")}` : "") : "";
-  const tgt = c.target.buy != null ? `<div class="st"><small>YOUR BUY TARGET · ${c.ref.manual != null ? "manual" : "auto"}</small><b class="yel">${money(c.target.buy)}</b>${c.med7 ? pct((c.med7 / c.target.buy - 1) * 100) + " to go" : ""}${c.sug.buy != null ? `<br><small>suggested ${money(c.sug.buy)} (research)</small>` : ""}</div>`
+  const tgt = c.target.buy != null ? `<div class="st"><small>YOUR BUY TARGET · ${c.ref.kind === "manual" || c.ref.manual != null ? "manual" : c.ref.kind ? "auto" : "no data"}</small><b class="yel">${money(c.target.buy)}</b>${c.med7 ? pct((c.med7 / c.target.buy - 1) * 100) + " to go" : ""}${c.sug.buy != null ? `<br><small>suggested ${money(c.sug.buy)} (research)</small>` : ""}</div>`
     : c.sug.buy == null ? `<div class="st"><small>SUGGESTED BUY-BELOW <span class="sugg">research</span></small><b>—</b>no suggested zone yet<br><small>no target set</small></div>`
     : `<div class="st"><small>SUGGESTED BUY-BELOW <span class="sugg">research</span></small><b class="grn">${money(c.sug.buy)}</b>${c.dist != null ? (c.dist <= 0 ? "median in zone" : pct(c.dist) + " to go") : "no zone yet"}<br><small>no target set</small></div>`;
   return `<a class="back" href="#/cards">← All cards</a><section class="cardhead"><h1>${esc(c.name)} <span>${esc(c.number)}</span></h1><p>${c.variant ? esc(c.variant) + " · " : ""}${c.lang === "JP" ? "Japanese" : "English"} · raw · eBay sold comps, sellers ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</p></section>

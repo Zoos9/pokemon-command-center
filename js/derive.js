@@ -31,7 +31,7 @@ export function buildModel(t) {
     const lowestTotal = num(a.lowest_total) ?? lowest?.total ?? null;
     const effBuy = target.buy ?? sug.buy, src = target.buy != null ? "target" : sug.buy != null ? "suggested" : null;
     const ref = { reference: num(w.reference), soldMed: num(w.sold_median_recent), win: num(w.sold_window_days), soldN: num(w.sold_n), p25: num(w.active_p25), activeN: num(w.active_n), k: num(w.k),
-      auto: num(w.auto_buy_below), manual: num(w.manual_buy_below), source: w.target_source || null, trend7: num(w.sold_trend_7d_pct), updated: w.reference_updated_at || null };
+      auto: num(w.auto_buy_below), manual: num(w.manual_buy_below), source: w.target_source || null, trend7: num(w.sold_trend_7d_pct), updated: w.reference_updated_at || null, pct: num(w.target_pct), kind: w.target_source_kind || null };
     const wflags = Array.isArray(w.flags) ? w.flags : [];
     const [nm, variant] = short(w.name);
     return { id: w.id, name: nm, variant, full: w.name, number: w.number, lang: /jap/i.test(w.language || "") ? "JP" : "EN", rarity: w.rarity,

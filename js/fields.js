@@ -4,7 +4,7 @@ export const TABLES = {
   watchlist:       { fields: { id: "id", name: "name", set: "set_name", number: "number", rarity: "rarity", language: "language", buy_below: "buy_below", sell_above: "sell_above", sold: "sold", sort_order: "sort_order",
     // reference price (migration reference_price); buy_below = manual if set, else auto
     reference: "reference", sold_median_recent: "sold_median_recent", sold_window_days: "sold_window_days", sold_n: "sold_n", active_p25: "active_p25", active_n: "active_n", k: "k",
-    auto_buy_below: "auto_buy_below", manual_buy_below: "manual_buy_below", target_source: "target_source", flags: "flags", sold_trend_7d_pct: "sold_trend_7d_pct", reference_updated_at: "reference_updated_at" } },
+    auto_buy_below: "auto_buy_below", manual_buy_below: "manual_buy_below", target_source: "target_source", flags: "flags", sold_trend_7d_pct: "sold_trend_7d_pct", reference_updated_at: "reference_updated_at", target_pct: "target_pct", target_source_kind: "target_source_kind" } },
   sold_sales:      { fields: { card_id: "card_id", item_id: "item_id", price: "price_usd", sold_date: "sold_date", condition: "condition", title: "title", url: "url", seller: "seller", seller_feedback: "seller_feedback" } },
   active_snapshot: { fields: { card_id: "card_id", scanned_at: "scanned_at", ebay_total: "ebay_total", reputable_count: "reputable_count", bin_count: "bin_count", auction_count: "auction_count", lowest_total: "lowest_total", lowest: "lowest_reputable", listings: "listings",
     // fallbacks for the lowest listing when its jsonb lacks the per-listing fields
