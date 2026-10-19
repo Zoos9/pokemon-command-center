@@ -132,3 +132,5 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .bcentre{stroke:#2ee6a6;stroke-width:1.5;stroke-dasharray:3 3}.bwin{fill:#c77dff22;stroke:#c77dff;stroke-dasharray:4 3}.bwinl{fill:#c77dff;font-size:11px;font-weight:800}.knife{display:inline-block;background:#ff4d6d22;color:#ff4d6d;border:1.5px solid #ff4d6d;border-radius:8px;padding:2px 8px;font-weight:900;font-size:13px;margin:0 0 8px}.knife small{font-weight:500}.ceil{font-size:15px;font-weight:800;color:#ffcb05;margin:4px 0}.ceil small{font-weight:500;color:var(--mut)}.kn{color:#ff4d6d}
 .boff{fill:#ffcb05}.boffl{fill:#ffcb05;font-size:11px;font-weight:800}
 .bwinl2{color:#c77dff;font-weight:700}
+.broll{fill:none;stroke:#fff;stroke-width:2;opacity:.65}.lg-br{display:inline-block;width:14px;height:3px;background:#fffa;margin-right:4px;vertical-align:middle}
+.bcdot{fill:#ffcb05}

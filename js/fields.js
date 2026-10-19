@@ -6,7 +6,12 @@ export const TABLES = {
     reference: "reference", sold_median_recent: "sold_median_recent", sold_window_days: "sold_window_days", sold_n: "sold_n", active_p25: "active_p25", active_n: "active_n", k: "k",
     auto_buy_below: "auto_buy_below", manual_buy_below: "manual_buy_below", target_source: "target_source", flags: "flags", sold_trend_7d_pct: "sold_trend_7d_pct", reference_updated_at: "reference_updated_at", target_pct: "target_pct", target_source_kind: "target_source_kind",
     // TREND (Alert Desk, migration 20261019_trend_tier; names confirmed). No daily series column yet -> curve derived from sold_sales (labelled).
-    trend_daily: "daily_medians" /* not landed */, trend_slope: "trend_slope_pct_day", trend_off_peak: "pct_off_peak", trend_accel: "trend_accel_pct_day", trend_phase: "phase", fair_now: "fair_now",
+    // App keys = column names (post-trim, canonical). Never recompute these client-side.
+    trend_slope_pct_day: "trend_slope_pct_day", pct_off_peak: "pct_off_peak", trend_accel_pct_day: "trend_accel_pct_day", phase: "phase", fair_now: "fair_now",
+    median_3d: "median_3d", median_3d_n: "median_3d_n", median_7d: "median_7d", median_7d_n: "median_7d_n", median_14d: "median_14d", median_14d_n: "median_14d_n",
+    median_since_release: "median_since_release", median_since_release_n: "median_since_release_n",
+    // Post-trim daily history jsonb [{date, n, median, roll3_median}], oldest first; n=0 days have median null. Primary chart source.
+    daily_history: "daily_history",
     peak_median: "peak_median", peak_date: "peak_date", trend_since: "trend_since", trend_window_days: "trend_window_days", trend_n: "trend_n", trend_line_today: "trend_line_today", fair_now_capped: "fair_now_capped",
     peak_n: "peak_n", outliers_trimmed: "outliers_trimmed", sold_7d_median: "sold_7d_median", sold_7d_n: "sold_7d_n",
     // canonical research call (migration 20261019_canon_research) — primary source for the bottom view; research_calls is the fallback
@@ -19,13 +24,11 @@ export const TABLES = {
     // fallbacks for the lowest listing when its jsonb lacks the per-listing fields
     lowest_item_usd: "lowest_item_usd", lowest_shipping_usd: "lowest_shipping_usd", lowest_tax_rate: "lowest_tax_rate", lowest_tax_usd: "lowest_tax_usd", lowest_total_with_tax_usd: "lowest_total_with_tax_usd", lowest_tax_note: "lowest_tax_note", auctions_ending_soon: "auctions_ending_soon" } },
   scans:           { fields: { ts: "ts", cards_scanned: "cards_scanned", cards_requested: "cards_requested", errors: "errors", calls_today: "calls_today", daily_limit: "daily_limit" } },
-  alerts:          { fields: { ts: "ts", card_id: "card_id", card: "card", number: "number", language: "language", price_kind: "price_kind", direction: "direction", value: "value", target: "target", link: "link", seller: "seller", seller_feedback: "seller_feedback", title: "title", data: "data",
+  alerts:          { fields: { ts: "ts", card_id: "card_id", card: "card", number: "number", language: "language", price_kind: "price_kind", direction: "direction", value: "value", target: "target", link: "link", data: "data",
     item_usd: "item_usd", shipping_usd: "shipping_usd", tax_rate: "tax_rate", tax_usd: "tax_usd", total_with_tax_usd: "total_with_tax_usd", tax_note: "tax_note", alert_text: "alert_text", status: "status", status_reason: "status_reason", status_checked_at: "status_checked_at", flags: "flags",
     tier: "tier" /* DEAL | WATCH; null = legacy -> DEAL */, tier_reason: "tier_reason", phase: "phase", zone_low: "zone_low", zone_high: "zone_high", zone_call_date: "zone_call_date", zone_distance_pct: "zone_distance_pct", zone_pct_vs_low: "zone_pct_vs_low", zone_pct_vs_high: "zone_pct_vs_high", zone_mid: "zone_mid", deal_ceiling: "deal_ceiling", research_call_id: "research_call_id", research_confidence: "research_confidence", research_falling_knife: "research_falling_knife", research_bottom_window: "research_bottom_window" } },
   feed:            { fields: { ts: "ts", from: "from_bot", to: "to_bot", type: "type", text: "text" } },
-  research_calls:  { fields: { date: "date", card_id: "card_id", card: "card", call: "call", prediction: "prediction", confidence: "confidence", phase: "phase", zone_low: "zone_low", zone_high: "zone_high", buy_below: "buy_below", status: "status", data: "data", evidence_links: "evidence_links", review_by: "review_by",
-    // predicted bottom (Market Researcher) — window/reason NOT landed yet; names unconfirmed
-    zone_window: "bottom_window", zone_reason: "bottom_reason" } },
+  research_calls:  { fields: { date: "date", card_id: "card_id", card: "card", call: "call", prediction: "prediction", confidence: "confidence", phase: "phase", zone_low: "zone_low", zone_high: "zone_high", buy_below: "buy_below", status: "status", data: "data", evidence_links: "evidence_links", review_by: "review_by" } },
   card_history:    { fields: { ts: "ts", date: "date", card_id: "card_id", median_7d: "median_7d", median_30d: "median_30d", sales_7d: "sales_7d", sales_30d: "sales_30d", last_sale: "last_sale", trend: "trend", active_count: "active_reputable_count", ebay_total: "ebay_total", lowest_ask: "lowest_reputable_ask", ask_vs_median_7d_pct: "ask_vs_median_7d_pct", outliers_dropped: "outliers_dropped" } },
   reports:         { fields: { id: "id", title: "name", date: "date", kind: "kind", body: "markdown" } },
 };

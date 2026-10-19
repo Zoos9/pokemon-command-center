@@ -7,6 +7,13 @@ const short = (name) => { const m = (name || "").match(/^(.*?)\s*\((.*)\)\s*$/);
 
 // A call is hidden when withdrawn; status comes from the column or, for older rows, the raw data jsonb.
 export const callStatus = (r) => String(r.status ?? r.data?.status ?? "active").toLowerCase();
+function trimSales(ss) {
+  if (!ss.length) return ss;
+  const m = median(ss.map((s) => +s.price));
+  const a = ss.filter((s) => +s.price >= 0.33 * m && +s.price <= 3 * m);
+  return a.filter((s, i) => { const t = Date.parse(s.sold_date); const nb = a.filter((o, j) => j !== i && Math.abs(Date.parse(o.sold_date) - t) <= 3 * 864e5).map((o) => +o.price);
+    if (nb.length < 3) return true; const mm = median(nb); return +s.price >= 0.33 * mm && +s.price <= 3 * mm; });
+}
 export function buildModel(t) {
   // Defense in depth: only cards currently on the watchlist are shown; withdrawn calls are ignored.
   const watchIds = new Set(t.watchlist.map((w) => w.id));
@@ -20,14 +27,14 @@ export function buildModel(t) {
   const cards = t.watchlist.map((w) => {
     const h = hist[w.id] || {}, c = calls[w.id] || {}, a = act[w.id] || {};
     const ss = (sales[w.id] || []).filter((s) => num(s.price) != null).sort((x, y) => (x.sold_date > y.sold_date ? 1 : -1));
-    const byDay = {}; for (const s of ss) (byDay[s.sold_date] ||= []).push(+s.price);
+    const kept = trimSales(ss);   // chart only: same rule as scanner/trend.py (0.33x–3x whole-history, then centred ±3d band)
+    const byDay = {}; for (const s of kept) (byDay[s.sold_date] ||= []).push(+s.price);
     const daily = Object.keys(byDay).sort().map((d) => [d, median(byDay[d])]);
-    let med7 = num(h.median_7d) ?? num(w.sold?.median);
-    if (med7 == null && ss.length) { const last = new Date(ss.at(-1).sold_date); med7 = median(ss.filter((s) => (last - new Date(s.sold_date)) / 864e5 <= 7).map((s) => +s.price)); }
+    const med7 = num(w.median_7d) ?? num(h.median_7d) ?? num(w.sold?.median);   // canonical post-trim first; no client recompute
     const rz = w.research_zone_low != null && w.research_zone_high != null;  // watchlist research_* is primary, research_calls fallback
     const sug = { phase: (w.research_phase || c.phase) ? String(w.research_phase || c.phase).toLowerCase() : null, low: rz ? num(w.research_zone_low) : num(c.zone_low), high: rz ? num(w.research_zone_high) : num(c.zone_high), buy: num(c.buy_below), conf: (rz && w.research_confidence) || c.confidence || null,
       kind: rz ? w.research_kind || null : null, centre: rz ? num(w.research_bottom_centre) : null, knife: w.research_falling_knife === true, wStart: w.research_expected_bottom_start || null, wEnd: w.research_expected_bottom_end || null,
-      wText: w.research_expected_bottom_window || null, category: w.research_category || null, method: w.research_zone_method || null, zoneSrc: rz ? "watchlist" : c.zone_low != null ? "research_calls" : null, prediction: c.prediction || null, review_by: c.review_by || null, window: c.zone_window || null, reason: (rz && w.research_reason) || c.zone_reason || null, links: c.evidence_links || [], call: c.call || null, date: c.date || null };
+      wText: w.research_expected_bottom_window || null, category: w.research_category || null, method: w.research_zone_method || null, zoneSrc: rz ? "watchlist" : c.zone_low != null ? "research_calls" : null, prediction: c.prediction || null, review_by: c.review_by || null, window: null, reason: (rz && w.research_reason) || null, links: c.evidence_links || [], call: c.call || null, date: c.date || null };
     const target = { buy: num(w.buy_below), sell: num(w.sell_above) };
     const lowest = withLowestFallback(mapListing(a.lowest), a); const listings = (a.listings || []).map(mapListing).filter(Boolean);
     const auctions = (a.auctions_ending_soon || []).map(mapListing).filter(Boolean).sort((x, y) => (x.end_date || "").localeCompare(y.end_date || ""));
@@ -36,7 +43,8 @@ export function buildModel(t) {
     const ref = { reference: num(w.reference), soldMed: num(w.sold_median_recent), win: num(w.sold_window_days), soldN: num(w.sold_n), p25: num(w.active_p25), activeN: num(w.active_n), k: num(w.k),
       auto: num(w.auto_buy_below), manual: num(w.manual_buy_below), source: w.target_source || null, trend7: num(w.sold_trend_7d_pct), updated: w.reference_updated_at || null, pct: num(w.target_pct), kind: w.target_source_kind || null, fair: num(w.fair_now), fairCapped: w.fair_now_capped === true };
     const wflags = Array.isArray(w.flags) ? w.flags : [];
-    const trendData = { daily: w.trend_daily, slope: num(w.trend_slope), off_peak: num(w.trend_off_peak), accel: num(w.trend_accel), phase: w.trend_phase || null, fair_now: num(w.fair_now), peak: num(w.peak_median), peak_date: w.peak_date || null, win: num(w.trend_window_days), n: num(w.trend_n), line_today: num(w.trend_line_today), peak_n: num(w.peak_n), outliers: num(w.outliers_trimmed), s7med: num(w.sold_7d_median), s7n: num(w.sold_7d_n) };
+    const dh = Array.isArray(w.daily_history) && w.daily_history.length ? w.daily_history : null;
+    const trendData = { daily: dh, slope: num(w.trend_slope_pct_day), off_peak: num(w.pct_off_peak), accel: num(w.trend_accel_pct_day), phase: w.phase || null, trimmedN: ss.length - kept.length, fair_now: num(w.fair_now), peak: num(w.peak_median), peak_date: w.peak_date || null, win: num(w.trend_window_days), n: num(w.trend_n), line_today: num(w.trend_line_today), peak_n: num(w.peak_n), outliers: num(w.outliers_trimmed), s7med: num(w.sold_7d_median), s7n: num(w.sold_7d_n) };
     const [nm, variant] = short(w.name);
     return { id: w.id, name: nm, variant, full: w.name, number: w.number, lang: /jap/i.test(w.language || "") ? "JP" : "EN", rarity: w.rarity,
       target, sug, effBuy, src, ref, wflags, trendData, med7, med30: num(h.median_30d), s7: num(h.sales_7d), s30: num(h.sales_30d), trend: h.trend || null,
