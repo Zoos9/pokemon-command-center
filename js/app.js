@@ -5,6 +5,7 @@ import { spark, priceChart, radar, phaseColor } from "./charts.js";
 import { esc, money, pct, tCT, dCT, ago } from "./util.js";
 import { priceBtn } from "./price.js";
 import { alertPrice, alertActive } from "./fields.js";
+import { bottomSection, bottomModel, meterHtml, phaseChip } from "./bottom.js";
 
 const TEAM = [
   { name: "Pokemon Lead", role: "Coordinator: splits work, keeps the team on track", color: "#ffcb05" },
@@ -51,7 +52,7 @@ function targetExplainer(c) {
   const [bc, bl] = KIND_BADGE[kind] || ["nod", "no data"];
   const badge = `<span class="tsrc ${bc}" title="${esc(r.source || "")}">${bl}</span>`;
   const askAdj = r.p25 != null && r.k != null ? r.p25 * r.k : null;
-  const sold = `<span class="${kind === "auto_sold" ? "won" : ""}">sold ${c2(r.soldMed)}</span>`;
+  const fairV = r.fair ?? r.soldMed, fairL = r.fair != null ? "fair now" : "sold"; const sold = `<span class="${kind === "auto_sold" ? "won" : ""}">${fairL} ${c2(fairV)}${r.fairCapped ? " <small>(capped)</small>" : ""}</span>`;
   const asks = r.p25 == null ? `<span>asks n/a</span>` : `<span class="${kind === "auto_asks" ? "won" : ""}">asks ${c2(r.p25)}${r.k != null ? ` × ${r.k} = ${c2(askAdj)}` : ""}</span>`;
   const pctTxt = r.pct != null ? `${Math.round(r.pct * 1000) / 10}% of ` : "";
   const autoV = r.manual != null ? r.auto : c.target.buy;
@@ -68,7 +69,7 @@ function dealCard(c, kind) {
   // The price breakdown sits OUTSIDE the card link so tapping it expands instead of navigating.
   return `<article class="deal ${kind}">${cardLink(c, `<div class="tag">${kind === "target" ? "✅ UNDER YOUR TARGET" : "💡 UNDER SUGGESTED ZONE · not an alert"}</div>
     <div class="dt">${cname(c)}</div>${l.title ? `<div class="ltitle">“${esc(l.title)}”</div>` : ""}`)}
-    <div class="big">${priceBtn(l, { key: "deal-" + c.id, target: ref, targetLabel: refLabel })}</div>
+    ${(() => { const bm = bottomModel(c), mt = meterHtml(bm, true), ch = phaseChip(bm); return mt || ch ? `<div class="dbot">${ch}${mt}</div>` : ""; })()}<div class="big">${priceBtn(l, { key: "deal-" + c.id, target: ref, targetLabel: refLabel })}</div>
     ${cardLink(c, `<div class="vs">7d sold median <b>${money(c.med7)}</b> · ${refLabel} <b>${money(ref)}</b> <small>(item+ship ${money(l.total)})</small></div>
     ${under != null ? `<div class="pill">▼ ${under.toFixed(0)}% under market</div>` : ""}
     <div class="sel">seller <b>${esc(l.seller || "?")}</b> · ${fb(l)} · ${esc(l.condition || "")}</div><div class="badges">${legit(l)}${badges(l)}${flagBadges([...new Set([...cardAlertFlags(c), ...c.wflags])])}</div>`)}
@@ -113,9 +114,15 @@ function pastAlerts() {
   if (!p.length) return "";
   return `<details class="past" data-k="past-alerts"><summary>Past alerts (${p.length})</summary>${p.map((x) => `<div class="pal"><span class="pst">${esc(x.status)}</span> ${esc(x.card)} ${esc(x.number || "")} ${pastPrice(x)}${x.status_reason ? `<div class="psr">${esc(x.status_reason)}</div>` : ""}<small>fired ${dCT(x.ts)}${x.status_checked_at ? ` · checked ${dCT(x.status_checked_at)}` : ""}</small></div>`).join("")}</details>`;
 }
+const alTier = (x) => (String(x.tier || "DEAL").toUpperCase() === "WATCH" ? "WATCH" : "DEAL");
+const alLbl = (x) => (alTier(x) === "WATCH" ? "👀 watching" : x.direction === "above_sell" ? "📤 SELL" : "📥 BUY");
+const alZone = (x) => { if (x.zone_low == null || x.zone_high == null) return "";
+  const d = x.zone_distance_pct, t = d == null ? "" : +d === 0 ? " · inside the zone" : +d > 0 ? ` · ${(+d).toFixed(0)}% above zone` : ` · ${Math.abs(+d).toFixed(0)}% below zone`;
+  return `<div class="alz">bottom zone ${money(x.zone_low)}–${money(x.zone_high)}${t}${x.phase ? ` · ${esc(x.phase)}` : ""}</div>`; };
+const alRow = (x) => x.alert_text ? `<div class="al"><b>${alLbl(x)}</b> ${esc(x.alert_text)} ${x.price_kind === "lowest_active" ? `<div class="alp">${priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" })}</div>` : ""}${alZone(x)}${alTier(x) === "WATCH" && x.tier_reason ? `<div class="twr">why watch: ${esc(x.tier_reason)}</div>` : ""}${flagBadges(x.flags)}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>` : `<div class="al"><b>${alLbl(x)}</b> ${esc(x.card)} ${esc(x.number || "")} — ${esc(KIND[x.price_kind] || x.price_kind || "price")} ${x.price_kind === "lowest_active" ? priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" }) : money(x.value)} is ${x.direction === "above_sell" ? "above your sell" : "below your buy"} target ${money(x.target)} ${alZone(x)}${alTier(x) === "WATCH" && x.tier_reason ? `<div class="twr">why watch: ${esc(x.tier_reason)}</div>` : ""}${flagBadges(x.flags)}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>`;
 function alertsBox(anyTargets) {
-  const a = S.alerts.filter(alertActive).slice(-5).reverse();
-  return `<section class="panel alerts"><h2>🚨 Alerts</h2>${a.length ? a.map((x) => x.alert_text ? `<div class="al"><b>${x.direction === "above_sell" ? "📤 SELL" : "📥 BUY"}</b> ${esc(x.alert_text)} ${x.price_kind === "lowest_active" ? `<div class="alp">${priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" })}</div>` : ""}${flagBadges(x.flags)}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>` : `<div class="al"><b>${x.direction === "above_sell" ? "📤 SELL" : "📥 BUY"}</b> ${esc(x.card)} ${esc(x.number || "")} — ${esc(KIND[x.price_kind] || x.price_kind || "price")} ${x.price_kind === "lowest_active" ? priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" }) : money(x.value)} is ${x.direction === "above_sell" ? "above your sell" : "below your buy"} target ${money(x.target)} ${flagBadges(x.flags)}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>`).join("")
+  const a = S.alerts.filter(alertActive).slice(-8).reverse(), deal = a.filter((x) => alTier(x) === "DEAL"), watch = a.filter((x) => alTier(x) === "WATCH");
+  return `<section class="panel alerts"><h2>🚨 Alerts</h2>${a.length ? `${deal.length ? `<div class="altier deal"><h3>🔥 DEAL <small>pushed</small></h3>${deal.map(alRow).join("")}</div>` : ""}${watch.length ? `<div class="altier watch"><h3>👀 Watching (still falling) <small>under target, not pushed — not a buy signal yet</small></h3>${watch.map(alRow).join("")}</div>` : ""}`
     : `<p class="empty">${anyTargets ? (S.alerts.length ? "No live alerts right now." : "No alerts fired yet.") : "No alerts yet — set buy_below / sell_above targets to enable."}</p>`}${pastAlerts()}</section>`;
 }
 function feedList(n) {
@@ -164,7 +171,7 @@ function vCard(id) {
   <div class="st"><small>LOWEST REPUTABLE ASK</small><b class="pink">${money(l?.total)}</b>${c.askVsMed != null ? pct(c.askVsMed, 1) + " vs median" : "no listing"}</div>${tgt}
   <div class="st"><small>ACTIVE (REPUTABLE)</small><b>${c.activeCount ?? "—"}</b>${c.ebayTotal != null ? `of ${c.ebayTotal.toLocaleString()} on eBay · ` : ""}scanned ${tCT(c.scanned_at)}</div></div>
   ${l ? `<div class="lowl"><div class="lowp">Lowest reputable ${priceBtn(l, { key: "low-" + c.id, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested buy-below" })}</div>${l.title ? `“${esc(l.title)}” ` : ""}<span class="badges">${legit(l)}${badges(l)}</span>${l.url ? ` <a href="${esc(l.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</div>` : ""}
-  <div class="cardgrid"><section class="panel">${priceChart(c, small())}<p class="note">Dots are individual eBay sold comps${c.outliers ? ` (${c.outliers} outlier${c.outliers > 1 ? "s" : ""} dropped from the median)` : ""}. Medians come from ${c.histCount} history snapshot${c.histCount === 1 ? "" : "s"}${c.histDate ? ` (${esc(c.histDate)})` : ""}; the trend line will fill in as daily snapshots accumulate.</p></section>
+  ${bottomSection(c, small())}<div class="cardgrid"><section class="panel">${priceChart(c, small())}<p class="note">Dots are individual eBay sold comps${c.outliers ? ` (${c.outliers} outlier${c.outliers > 1 ? "s" : ""} dropped from the median)` : ""}. Medians come from ${c.histCount} history snapshot${c.histCount === 1 ? "" : "s"}${c.histDate ? ` (${esc(c.histDate)})` : ""}; the trend line will fill in as daily snapshots accumulate.</p></section>
   <div><section class="panel call" style="border-color:${phaseColor(c.sug.phase)}">${c.sug.call ? `<h2 style="color:${phaseColor(c.sug.phase)}">Research: ${esc((c.sug.phase || "").toUpperCase())}</h2><p>${esc(c.sug.call)}</p>${c.sug.prediction ? `<p class="pred">${esc(c.sug.prediction)}</p>` : ""}<p>confidence <b>${esc(c.sug.conf || "?")}</b> · call ${esc(c.sug.date || "")} · review by ${esc(c.sug.review_by || "—")}</p>${c.sug.links.length ? `<details><summary>${c.sug.links.length} sources</summary>${c.sug.links.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, "").slice(0, 60))}</a>`).join("")}</details>` : ""}` : `<p class="empty">No research call for this card yet.</p>`}</section>
   ${c.auctions.length ? `<section class="panel"><h2>⏱ Auctions ending soon</h2><table class="tbl lst"><tbody>${c.auctions.map((x) => `<tr><td class="n">${priceBtn(x, { key: "au-" + (x.item_id || x.url), pop: true, compact: true, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested" })}<small>${x.bids ?? 0} bid${x.bids === 1 ? "" : "s"}</small></td><td>${esc(x.seller || "?")}<small>${fb(x)}</small>${x.title ? `<small class="lt">${esc(x.title)}</small>` : ""}</td><td><small>ends</small>${esc(dCT(x.end_date))}</td><td>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</td></tr>`).join("")}</tbody></table></section>` : ""}
   <section class="panel"><h2>Live BIN listings <small>reputable sellers</small></h2>${listings ? `<table class="tbl lst"><tbody>${listings}</tbody></table>${c.listings.length > 10 ? "</details>" : ""}` : `<p class="empty">No reputable listings in the last scan.</p>`}</section></div></div>`;

@@ -24,18 +24,19 @@ export function buildModel(t) {
     const daily = Object.keys(byDay).sort().map((d) => [d, median(byDay[d])]);
     let med7 = num(h.median_7d) ?? num(w.sold?.median);
     if (med7 == null && ss.length) { const last = new Date(ss.at(-1).sold_date); med7 = median(ss.filter((s) => (last - new Date(s.sold_date)) / 864e5 <= 7).map((s) => +s.price)); }
-    const sug = { phase: c.phase ? String(c.phase).toLowerCase() : null, low: num(c.zone_low), high: num(c.zone_high), buy: num(c.buy_below), conf: c.confidence || null, prediction: c.prediction || null, review_by: c.review_by || null, links: c.evidence_links || [], call: c.call || null, date: c.date || null };
+    const sug = { phase: c.phase ? String(c.phase).toLowerCase() : null, low: num(c.zone_low), high: num(c.zone_high), buy: num(c.buy_below), conf: c.confidence || null, prediction: c.prediction || null, review_by: c.review_by || null, window: c.zone_window || null, reason: c.zone_reason || null, links: c.evidence_links || [], call: c.call || null, date: c.date || null };
     const target = { buy: num(w.buy_below), sell: num(w.sell_above) };
     const lowest = withLowestFallback(mapListing(a.lowest), a); const listings = (a.listings || []).map(mapListing).filter(Boolean);
     const auctions = (a.auctions_ending_soon || []).map(mapListing).filter(Boolean).sort((x, y) => (x.end_date || "").localeCompare(y.end_date || ""));
     const lowestTotal = num(a.lowest_total) ?? lowest?.total ?? null;
     const effBuy = target.buy ?? sug.buy, src = target.buy != null ? "target" : sug.buy != null ? "suggested" : null;
     const ref = { reference: num(w.reference), soldMed: num(w.sold_median_recent), win: num(w.sold_window_days), soldN: num(w.sold_n), p25: num(w.active_p25), activeN: num(w.active_n), k: num(w.k),
-      auto: num(w.auto_buy_below), manual: num(w.manual_buy_below), source: w.target_source || null, trend7: num(w.sold_trend_7d_pct), updated: w.reference_updated_at || null, pct: num(w.target_pct), kind: w.target_source_kind || null };
+      auto: num(w.auto_buy_below), manual: num(w.manual_buy_below), source: w.target_source || null, trend7: num(w.sold_trend_7d_pct), updated: w.reference_updated_at || null, pct: num(w.target_pct), kind: w.target_source_kind || null, fair: num(w.fair_now), fairCapped: w.fair_now_capped === true };
     const wflags = Array.isArray(w.flags) ? w.flags : [];
+    const trendData = { daily: w.trend_daily, slope: num(w.trend_slope), off_peak: num(w.trend_off_peak), accel: num(w.trend_accel), phase: w.trend_phase || null, fair_now: num(w.fair_now), peak: num(w.peak_median), peak_date: w.peak_date || null, win: num(w.trend_window_days), n: num(w.trend_n), line_today: num(w.trend_line_today) };
     const [nm, variant] = short(w.name);
     return { id: w.id, name: nm, variant, full: w.name, number: w.number, lang: /jap/i.test(w.language || "") ? "JP" : "EN", rarity: w.rarity,
-      target, sug, effBuy, src, ref, wflags, med7, med30: num(h.median_30d), s7: num(h.sales_7d), s30: num(h.sales_30d), trend: h.trend || null,
+      target, sug, effBuy, src, ref, wflags, trendData, med7, med30: num(h.median_30d), s7: num(h.sales_7d), s30: num(h.sales_30d), trend: h.trend || null,
       lastSale: h.last_sale || null, outliers: num(h.outliers_dropped), ebayTotal: num(h.ebay_total) ?? num(a.ebay_total), histDate: h.date || null, histCount: t.history.filter((r) => r.card_id === w.id).length, sales: ss, daily,
       lowest, lowestTotal, listings, auctions, binCount: num(a.bin_count), auctionCount: num(a.auction_count), scanned_at: a.scanned_at, activeCount: num(a.reputable_count) ?? num(h.active_count),
       dist: effBuy && med7 ? ((med7 - effBuy) / effBuy) * 100 : null,
