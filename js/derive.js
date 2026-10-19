@@ -5,7 +5,14 @@ import { median, num } from "./util.js";
 
 const short = (name) => { const m = (name || "").match(/^(.*?)\s*\((.*)\)\s*$/); return m ? [m[1], m[2].split(",")[0]] : [name || "?", ""]; };
 
+// A call is hidden when withdrawn; status comes from the column or, for older rows, the raw data jsonb.
+export const callStatus = (r) => String(r.status ?? r.data?.status ?? "active").toLowerCase();
 export function buildModel(t) {
+  // Defense in depth: only cards currently on the watchlist are shown; withdrawn calls are ignored.
+  const watchIds = new Set(t.watchlist.map((w) => w.id));
+  t = { ...t, calls: t.calls.filter((r) => callStatus(r) !== "withdrawn" && (r.card_id === "SET" || watchIds.has(r.card_id))),
+    active: t.active.filter((r) => watchIds.has(r.card_id)), history: t.history.filter((r) => watchIds.has(r.card_id)),
+    sold: t.sold.filter((r) => watchIds.has(r.card_id)) };
   const hist = {}; for (const r of t.history) if (!hist[r.card_id] || (r.ts || "") > (hist[r.card_id].ts || "")) hist[r.card_id] = r;
   const calls = {}; for (const r of t.calls) if (r.card_id && r.card_id !== "SET" && (!calls[r.card_id] || (r.date || "") >= (calls[r.card_id].date || ""))) calls[r.card_id] = r;
   const act = {}; for (const r of t.active) act[r.card_id] = r;
