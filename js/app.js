@@ -80,10 +80,16 @@ function setBanner() {
   return `<div class="setban" style="border-color:${phaseColor(sc.phase)}"><b style="color:${phaseColor(sc.phase)}">SET-WIDE: ${esc((sc.phase || "?").toUpperCase())}</b> <span>${esc(sc.prediction || sc.call || "")}</span> <small>confidence ${esc(sc.confidence || "?")} · ${esc(sc.date || "")}</small></div>`;
 }
 const KIND = { sold_median: "7d sold median", lowest_active: "lowest active listing" };
+const c2 = (v) => v == null || isNaN(+v) ? null : "$" + (+v).toFixed(2);
+function pastPrice(x) {
+  const it = x.item_usd ?? x.value, sh = x.shipping_usd;
+  const base = it == null ? "" : sh != null ? `· was ${c2(+it + +sh)} item+ship` : `· was ${c2(it)} item, shipping unknown`;
+  return base + (x.total_with_tax_usd != null ? ` (${c2(x.total_with_tax_usd)} all-in)` : "");
+}
 function pastAlerts() {
   const p = S.alerts.filter((x) => !alertActive(x)).reverse();
   if (!p.length) return "";
-  return `<details class="past" data-k="past-alerts"><summary>Past alerts (${p.length})</summary>${p.map((x) => `<div class="pal"><span class="pst">${esc(x.status)}</span> ${esc(x.card)} ${esc(x.number || "")} · was ${money(x.total_with_tax_usd ?? x.value)}${x.status_reason ? `<div class="psr">${esc(x.status_reason)}</div>` : ""}<small>fired ${dCT(x.ts)}${x.status_checked_at ? ` · checked ${dCT(x.status_checked_at)}` : ""}</small></div>`).join("")}</details>`;
+  return `<details class="past" data-k="past-alerts"><summary>Past alerts (${p.length})</summary>${p.map((x) => `<div class="pal"><span class="pst">${esc(x.status)}</span> ${esc(x.card)} ${esc(x.number || "")} ${pastPrice(x)}${x.status_reason ? `<div class="psr">${esc(x.status_reason)}</div>` : ""}<small>fired ${dCT(x.ts)}${x.status_checked_at ? ` · checked ${dCT(x.status_checked_at)}` : ""}</small></div>`).join("")}</details>`;
 }
 function alertsBox(anyTargets) {
   const a = S.alerts.filter(alertActive).slice(-5).reverse();
