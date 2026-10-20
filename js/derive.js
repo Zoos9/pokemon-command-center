@@ -51,7 +51,7 @@ export function buildModel(t) {
     return { id: w.id, name: nm, variant, full: w.name, number: w.number, lang: /jap/i.test(w.language || "") ? "JP" : "EN", rarity: w.rarity,
       target, sug, effBuy, src, ref, wflags, trendData, med7, med30: num(h.median_30d), s7: num(h.sales_7d), s30: num(h.sales_30d), trend: h.trend || null,
       lastSale: h.last_sale || null, outliers: num(h.outliers_dropped), ebayTotal: num(h.ebay_total) ?? num(a.ebay_total), histDate: h.date || null, histCount: t.history.filter((r) => r.card_id === w.id).length, sales: ss, daily,
-      lowest, lowestTotal, listings, auctions, binCount: num(a.bin_count), auctionCount: num(a.auction_count), scanned_at: a.scanned_at, synced_at: w.synced_at || null, refAt: w.reference_updated_at || null, activeCount: num(a.reputable_count) ?? num(h.active_count),
+      lowest, lowestTotal, listings, auctions, binCount: num(a.bin_count), auctionCount: num(a.auction_count), scanned_at: a.scanned_at, synced_at: w.synced_at || null, trendAt: w.trend_changed_at || null, refAt: w.reference_updated_at || null, activeCount: num(a.reputable_count) ?? num(h.active_count),
       dist: effBuy && med7 ? ((med7 - effBuy) / effBuy) * 100 : null,
       askVsMed: lowest?.total != null && med7 ? (lowest.total / med7 - 1) * 100 : null };
   });

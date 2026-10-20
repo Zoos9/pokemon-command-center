@@ -80,5 +80,5 @@ export function sigFull(c, priceHtml) {
    <div><small>HOW CLOSE TO THE BOTTOM</small><b>${s.room == null ? "—" : s.room <= 0 ? "at/below zone low" : s.room.toFixed(1) + "% room"}</b><span>${s.room != null && s.room > 0 ? `ask must fall ${s.room.toFixed(1)}% to reach zone low ${c2(s.zl)}` : "vs zone low"} · ${p1(s.offPeak)} off peak</span></div>
 `}
    ${comp}
-  </div><div class="frrow">${freshTag("listings scanned", c.scanned_at)}${freshTag("trend/target synced", c.refAt || c.synced_at)}${c.sug.noteAt ? `<span class="fr ${Date.parse(c.sug.noteAt) < Date.parse(c.refAt || c.synced_at || 0) ? "stale" : "ok"}">${Date.parse(c.sug.noteAt) < Date.parse(c.refAt || c.synced_at || 0) ? "⚠ research note older than trend data: " : "research note "}${tCT(c.sug.noteAt)} <small>(${ago(c.sug.noteAt)})</small></span>` : ""}</div></section>`;
+  </div><div class="frrow">${freshTag("listings scanned", c.scanned_at)}${freshTag("trend/target synced", c.refAt || c.synced_at)}${c.sug.noteAt ? `<span class="fr ${Date.parse(c.sug.noteAt) < Date.parse(c.trendAt || c.refAt || c.synced_at || 0) ? "stale" : "ok"}">${Date.parse(c.sug.noteAt) < Date.parse(c.trendAt || c.refAt || c.synced_at || 0) ? "⚠ research note older than last trend change: " : "research note "}${tCT(c.sug.noteAt)} <small>(${ago(c.sug.noteAt)})</small></span>` : ""}</div></section>`;
 }
