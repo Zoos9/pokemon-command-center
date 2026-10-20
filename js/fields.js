@@ -23,7 +23,8 @@ export const TABLES = {
     research_category: "research_category", research_zone_method: "research_zone_method",
     // Alert Desk 2026-10-20 (peak/competitive work). All optional: missing column -> null -> '—'.
     post_peak_slope_pct_day: "post_peak_slope_pct_day", slope_basis: "slope_basis", leading_ask_ref: "leading_ask_ref", undercut_n: "undercut_n", undercut_share: "undercut_share",
-    competitive_n: "competitive_n", asks_total_n: "asks_total_n", ask_floor: "ask_floor", stale_n: "stale_n", active_p10: "active_p10", synced_at: "synced_at" } },
+    competitive_n: "competitive_n", asks_total_n: "asks_total_n", ask_floor: "ask_floor", stale_n: "stale_n", active_p10: "active_p10", synced_at: "synced_at",
+    research_data_status: "research_data_status", research_insufficient_reason: "research_insufficient_reason", research_note_updated_at: "research_note_updated_at", research_robust_peak: "research_robust_peak", research_robust_peak_date: "research_robust_peak_date" } },
   sold_sales:      { fields: { card_id: "card_id", item_id: "item_id", price: "price_usd", sold_date: "sold_date", condition: "condition", title: "title", url: "url", seller: "seller", seller_feedback: "seller_feedback" } },
   active_snapshot: { fields: { card_id: "card_id", scanned_at: "scanned_at", ebay_total: "ebay_total", reputable_count: "reputable_count", bin_count: "bin_count", auction_count: "auction_count", lowest_total: "lowest_total", lowest: "lowest_reputable", listings: "listings",
     // fallbacks for the lowest listing when its jsonb lacks the per-listing fields
@@ -90,4 +91,6 @@ export const STAGES = {
 export const STAGE_UNKNOWN = { col: "#8a84b3", ic: "•", say: "A trend stage the app doesn't know yet; shown exactly as Alert Desk labelled it." };
 export const stageInfo = (p) => (p ? STAGES[String(p).toLowerCase()] || STAGE_UNKNOWN : null);
 // Stale threshold for freshness badges (ms).
+export const KIND_LABEL = { manual: "manual target", auto_sold: "sold-comp trend", auto_asks: "asks (p25 × k)", auto_leading_asks: "asks undercutting solds" };
+export const REBOUND_PCT = -8;   // rising but at least this far below peak -> rebound badge (Alert Desk: <8% off peak is genuinely rising)
 export const STALE_MS = 2 * 3600e3;

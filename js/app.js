@@ -46,7 +46,7 @@ const FLAG_ICON = { "thin data": "◔", "market dropping": "▼", "still falling
 const flagBadges = (fl, compact) => (fl || []).map((f) => `<span class="rf ${/thin/i.test(f) ? "amber" : /dropping|falling/i.test(f) ? "red" : "grey"}${compact ? " ic" : ""}" title="${esc(f)}">${compact ? (FLAG_ICON[f] || "⚠") : "⚠ " + esc(f)}</span>`).join("");
 const cardAlertFlags = (c) => [...new Set(S.alerts.filter((a) => alertActive(a) && a.card_id === c.id).flatMap((a) => a.flags || []))];
 // reference = lower of sold_median_recent or active_p25 × k (k = sold-to-ask ratio, asks side only); buy_below = target_pct × reference.
-const KIND_BADGE = { manual: ["man", "MANUAL"], auto_sold: ["auto", "AUTO · SOLD"], auto_asks: ["auto", "AUTO · ASKS"] };
+const KIND_BADGE = { manual: ["man", "MANUAL"], auto_sold: ["auto", "AUTO · SOLD"], auto_asks: ["auto", "AUTO · ASKS"], auto_leading_asks: ["auto", "AUTO · ASKS UNDERCUTTING SOLDS"] };
 function targetExplainer(c) {
   const r = c.ref; if (c.target.buy == null && r.reference == null) return "";
   const kind = r.kind || (r.manual != null ? "manual" : null);
