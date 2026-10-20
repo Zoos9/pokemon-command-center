@@ -12,6 +12,8 @@ export const TABLES = {
     median_since_release: "median_since_release", median_since_release_n: "median_since_release_n",
     // Post-trim daily history jsonb [{date, n, median, roll3_median}], oldest first; n=0 days have median null. Primary chart source.
     daily_history: "daily_history",
+    // card-level DEAL ceiling (migration 20261020_watch_deal_ceiling): falling fast -> zone_low, falling -> zone_mid, else zone_high
+    zone_mid: "zone_mid", deal_ceiling: "deal_ceiling", deal_ceiling_basis: "deal_ceiling_basis",
     peak_median: "peak_median", peak_date: "peak_date", trend_since: "trend_since", trend_window_days: "trend_window_days", trend_n: "trend_n", trend_line_today: "trend_line_today", fair_now_capped: "fair_now_capped",
     peak_n: "peak_n", outliers_trimmed: "outliers_trimmed", sold_7d_median: "sold_7d_median", sold_7d_n: "sold_7d_n",
     // canonical research call (migration 20261019_canon_research) — primary source for the bottom view; research_calls is the fallback
