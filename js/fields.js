@@ -20,12 +20,15 @@ export const TABLES = {
     research_call_id: "research_call_id", research_date: "research_date", research_zone_low: "research_zone_low", research_zone_high: "research_zone_high", research_confidence: "research_confidence",
     research_reason: "research_reason", research_falling_knife: "research_falling_knife", research_expected_bottom_window: "research_expected_bottom_window", research_expected_bottom_start: "research_expected_bottom_start",
     research_expected_bottom_end: "research_expected_bottom_end", research_bottom_centre: "research_bottom_centre", research_phase: "research_phase", research_kind: "research_kind", research_method: "research_method",
-    research_category: "research_category", research_zone_method: "research_zone_method" } },
+    research_category: "research_category", research_zone_method: "research_zone_method",
+    // Alert Desk 2026-10-20 (peak/competitive work). All optional: missing column -> null -> '—'.
+    post_peak_slope_pct_day: "post_peak_slope_pct_day", slope_basis: "slope_basis", leading_ask_ref: "leading_ask_ref", undercut_n: "undercut_n", undercut_share: "undercut_share",
+    competitive_n: "competitive_n", asks_total_n: "asks_total_n", ask_floor: "ask_floor", stale_n: "stale_n", active_p10: "active_p10", synced_at: "synced_at" } },
   sold_sales:      { fields: { card_id: "card_id", item_id: "item_id", price: "price_usd", sold_date: "sold_date", condition: "condition", title: "title", url: "url", seller: "seller", seller_feedback: "seller_feedback" } },
   active_snapshot: { fields: { card_id: "card_id", scanned_at: "scanned_at", ebay_total: "ebay_total", reputable_count: "reputable_count", bin_count: "bin_count", auction_count: "auction_count", lowest_total: "lowest_total", lowest: "lowest_reputable", listings: "listings",
     // fallbacks for the lowest listing when its jsonb lacks the per-listing fields
-    lowest_item_usd: "lowest_item_usd", lowest_shipping_usd: "lowest_shipping_usd", lowest_tax_rate: "lowest_tax_rate", lowest_tax_usd: "lowest_tax_usd", lowest_total_with_tax_usd: "lowest_total_with_tax_usd", lowest_tax_note: "lowest_tax_note", auctions_ending_soon: "auctions_ending_soon" } },
-  scans:           { fields: { ts: "ts", cards_scanned: "cards_scanned", cards_requested: "cards_requested", errors: "errors", calls_today: "calls_today", daily_limit: "daily_limit" } },
+    lowest_item_usd: "lowest_item_usd", lowest_shipping_usd: "lowest_shipping_usd", lowest_tax_rate: "lowest_tax_rate", lowest_tax_usd: "lowest_tax_usd", lowest_total_with_tax_usd: "lowest_total_with_tax_usd", lowest_tax_note: "lowest_tax_note", auctions_ending_soon: "auctions_ending_soon", synced_at: "synced_at" } },
+  scans:           { fields: { ts: "ts", cards_scanned: "cards_scanned", cards_requested: "cards_requested", errors: "errors", calls_today: "calls_today", daily_limit: "daily_limit", synced_at: "synced_at" } },
   alerts:          { fields: { ts: "ts", card_id: "card_id", card: "card", number: "number", language: "language", price_kind: "price_kind", direction: "direction", value: "value", target: "target", link: "link", data: "data",
     item_usd: "item_usd", shipping_usd: "shipping_usd", tax_rate: "tax_rate", tax_usd: "tax_usd", total_with_tax_usd: "total_with_tax_usd", tax_note: "tax_note", alert_text: "alert_text", status: "status", status_reason: "status_reason", status_checked_at: "status_checked_at", flags: "flags",
     tier: "tier" /* DEAL | WATCH; null = legacy -> DEAL */, tier_reason: "tier_reason", phase: "phase", zone_low: "zone_low", zone_high: "zone_high", zone_call_date: "zone_call_date", zone_distance_pct: "zone_distance_pct", zone_pct_vs_low: "zone_pct_vs_low", zone_pct_vs_high: "zone_pct_vs_high", zone_mid: "zone_mid", deal_ceiling: "deal_ceiling", research_call_id: "research_call_id", research_confidence: "research_confidence", research_falling_knife: "research_falling_knife", research_bottom_window: "research_bottom_window" } },
@@ -42,7 +45,9 @@ export const LISTING = { item_id: "item_id", title: "title", url: "url", total: 
   item_usd: "item_usd", shipping_usd: "shipping_usd", tax_rate: "tax_rate", tax_usd: "tax_usd", total_with_tax_usd: "total_with_tax_usd", tax_note: "tax_note",
   is_auction: "is_auction", bids: "bids", end_date: "end_date", buying_options: "buying_options", location: "location", flags: "flags" };
 
-export function mapRow(key, row) { const f = TABLES[key].fields, o = {}; for (const k in f) o[k] = row[f[k]] ?? null; return o; }
+export function mapRow(key, row) { const f = TABLES[key].fields, o = {}; for (const k in f) o[k] = row[f[k]] ?? null;
+  if (key === "watchlist") for (const names of Object.values(OPTIONAL)) for (const n of names) if (row[n] !== undefined && o[n] == null) o[n] = row[n];   // pass through optional/candidate columns
+  return o; }
 export function mapListing(l) { if (!l) return null; const o = {}; for (const k in LISTING) o[k] = l[LISTING[k]] ?? null; return o; }
 
 // Alert columns -> listing-shaped price object for the price button (raw `data` only as a fallback for old rows).
@@ -62,3 +67,27 @@ export function withLowestFallback(l, snap) {
 }
 // Only status 'active' alerts are live. Null/missing status = legacy row (pre-status column), treated as active.
 export const alertActive = (a) => a.status == null || a.status === "active";
+
+// Optional columns whose final names aren't settled: first non-null of the candidate names wins.
+export const OPTIONAL = {
+  competitive_n: ["competitive_n", "competitive_ask_count", "competitive_asks_n", "competitive_count"],
+  asks_total_n: ["asks_total_n", "total_ask_count", "active_n"],
+  post_peak_slope: ["post_peak_slope_pct_day", "post_peak_slope"],
+  leading_ask_ref: ["leading_ask_ref", "leading_asks_ref"],
+};
+export const pick = (row, key) => { for (const n of OPTIONAL[key] || [key]) if (row?.[n] != null && row[n] !== "") return row[n]; return null; };
+
+// Trend stages: colour, icon, plain-English meaning. Unknown/new values fall back to STAGE_UNKNOWN (shown as-is, never hidden).
+export const STAGES = {
+  "falling fast": { col: "#ff4d6d", ic: "⇊", say: "Sold prices are dropping quickly. Waiting usually pays; a deal needs the price at the LOW end of the predicted bottom." },
+  falling:        { col: "#ff7a45", ic: "↓", say: "Sold prices are drifting down. A deal needs the price at or below the MIDDLE of the predicted bottom." },
+  peaked:         { col: "#c77dff", ic: "⌒", say: "Prices hit a high recently and have started to turn down. Recent gains may not hold." },
+  slowing:        { col: "#ff9f1c", ic: "↘", say: "Still falling, but the drop is slowing down; a bottom may be forming." },
+  bottoming:      { col: "#ffcb05", ic: "◡", say: "Prices have stopped falling and are moving sideways near a low." },
+  flat:           { col: "#c9b458", ic: "→", say: "Sold prices are roughly steady." },
+  rising:         { col: "#2ee6a6", ic: "↗", say: "Sold prices over the trend window are going up. Check '% off peak': a card can be rising off a dip and still be below its high." },
+};
+export const STAGE_UNKNOWN = { col: "#8a84b3", ic: "•", say: "A trend stage the app doesn't know yet; shown exactly as Alert Desk labelled it." };
+export const stageInfo = (p) => (p ? STAGES[String(p).toLowerCase()] || STAGE_UNKNOWN : null);
+// Stale threshold for freshness badges (ms).
+export const STALE_MS = 2 * 3600e3;

@@ -32,7 +32,7 @@ export function priceChart(c, small = false) {
   const n = Math.min(6, days.length), idx = [...new Set(Array.from({ length: n }, (_, i) => Math.round((i * (days.length - 1)) / Math.max(1, n - 1))))];
   s += idx.map((i) => `<text x="${X(days[i])}" y="${H - 8}" text-anchor="middle" class="ax">${days[i].slice(5)}</text>`).join("");
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Sold price history">${s}</svg>
-  <div class="legend"><span><i class="lg-dot"></i>each sale</span>${c.daily.length > 1 ? `<span><i class="lg-med"></i>daily median</span>` : ""}<span><i class="lg-ask"></i>lowest live ask</span>${c.sug.low != null ? `<span><i class="lg-sug"></i>predicted bottom</span>` : ""}${c.target.buy != null ? `<span><i class="lg-target"></i>your target</span>` : ""}</div>`;
+  <ul class="legend2" aria-label="Chart legend"><li><i class="sw b"></i><b>Blue dots</b> <span>each individual sold comp (raw, including ones the trend trims)</span></li>${c.daily.length > 1 ? `<li><i class="sw y"></i><b>Yellow line</b> <span>daily median of sold comps (outliers trimmed here)</span></li>` : ""}${c.lowest?.total != null ? `<li><i class="sw pd"></i><b>Pink dashed</b> <span>cheapest reputable listing now, item + shipping</span></li>` : ""}${c.sug.low != null ? `<li><i class="sw gb"></i><b>Green band</b> <span>Researcher's predicted bottom</span></li>` : ""}${c.target.buy != null ? `<li><i class="sw yt2"></i><b>Yellow solid</b> <span>buy-below target</span></li>` : ""}${c.target.sell != null ? `<li><i class="sw p"></i><b>Pink solid</b> <span>sell target</span></li>` : ""}</ul></div>`;
 }
 function niceStep(x) { const p = 10 ** Math.floor(Math.log10(x || 1)), m = x / p; return (m < 1.5 ? 1 : m < 3 ? 2 : m < 7 ? 5 : 10) * p; }
 

@@ -1,6 +1,6 @@
 // Join raw tables into one card model + deal / radar logic. Pure functions, no DOM.
 import { CONFIG } from "./cfg.js";
-import { mapListing, withLowestFallback } from "./fields.js";
+import { mapListing, withLowestFallback, pick } from "./fields.js";
 import { median, num } from "./util.js";
 
 const short = (name) => { const m = (name || "").match(/^(.*?)\s*\((.*)\)\s*$/); return m ? [m[1], m[2].split(",")[0]] : [name || "?", ""]; };
@@ -41,15 +41,16 @@ export function buildModel(t) {
     const lowestTotal = num(a.lowest_total) ?? lowest?.total ?? null;
     const effBuy = target.buy ?? sug.buy, src = target.buy != null ? "target" : sug.buy != null ? "suggested" : null;
     const ref = { reference: num(w.reference), soldMed: num(w.sold_median_recent), win: num(w.sold_window_days), soldN: num(w.sold_n), p25: num(w.active_p25), activeN: num(w.active_n), k: num(w.k),
-      auto: num(w.auto_buy_below), manual: num(w.manual_buy_below), source: w.target_source || null, trend7: num(w.sold_trend_7d_pct), updated: w.reference_updated_at || null, pct: num(w.target_pct), kind: w.target_source_kind || null, fair: num(w.fair_now), fairCapped: w.fair_now_capped === true };
+      auto: num(w.auto_buy_below), manual: num(w.manual_buy_below), source: w.target_source || null, trend7: num(w.sold_trend_7d_pct), updated: w.reference_updated_at || null, pct: num(w.target_pct), kind: w.target_source_kind || null, fair: num(w.fair_now), fairCapped: w.fair_now_capped === true, lineToday: num(w.trend_line_today),
+      leading: num(pick(w, "leading_ask_ref")), undercutN: num(w.undercut_n), undercutShare: num(w.undercut_share), competitiveN: num(pick(w, "competitive_n")), asksTotalN: num(pick(w, "asks_total_n")), askFloor: num(w.ask_floor), staleN: num(w.stale_n), p10: num(w.active_p10) };
     const wflags = Array.isArray(w.flags) ? w.flags : [];
     const dh = Array.isArray(w.daily_history) && w.daily_history.length ? w.daily_history : null;
-    const trendData = { daily: dh, slope: num(w.trend_slope_pct_day), off_peak: num(w.pct_off_peak), accel: num(w.trend_accel_pct_day), phase: w.phase || null, trimmedN: ss.length - kept.length, fair_now: num(w.fair_now), peak: num(w.peak_median), peak_date: w.peak_date || null, win: num(w.trend_window_days), n: num(w.trend_n), line_today: num(w.trend_line_today), peak_n: num(w.peak_n), zone_mid: num(w.zone_mid), deal_ceiling: num(w.deal_ceiling), ceil_basis: w.deal_ceiling_basis || null, outliers: num(w.outliers_trimmed), s7med: num(w.sold_7d_median), s7n: num(w.sold_7d_n) };
+    const trendData = { daily: dh, slope: num(w.trend_slope_pct_day), off_peak: num(w.pct_off_peak), accel: num(w.trend_accel_pct_day), phase: w.phase || null, trimmedN: ss.length - kept.length, fair_now: num(w.fair_now), peak: num(w.peak_median), peak_date: w.peak_date || null, win: num(w.trend_window_days), n: num(w.trend_n), line_today: num(w.trend_line_today), peak_n: num(w.peak_n), zone_mid: num(w.zone_mid), deal_ceiling: num(w.deal_ceiling), ceil_basis: w.deal_ceiling_basis || null, outliers: num(w.outliers_trimmed), s7med: num(w.sold_7d_median), s7n: num(w.sold_7d_n), postPeakSlope: num(pick(w, "post_peak_slope")), slopeBasis: w.slope_basis || null };
     const [nm, variant] = short(w.name);
     return { id: w.id, name: nm, variant, full: w.name, number: w.number, lang: /jap/i.test(w.language || "") ? "JP" : "EN", rarity: w.rarity,
       target, sug, effBuy, src, ref, wflags, trendData, med7, med30: num(h.median_30d), s7: num(h.sales_7d), s30: num(h.sales_30d), trend: h.trend || null,
       lastSale: h.last_sale || null, outliers: num(h.outliers_dropped), ebayTotal: num(h.ebay_total) ?? num(a.ebay_total), histDate: h.date || null, histCount: t.history.filter((r) => r.card_id === w.id).length, sales: ss, daily,
-      lowest, lowestTotal, listings, auctions, binCount: num(a.bin_count), auctionCount: num(a.auction_count), scanned_at: a.scanned_at, activeCount: num(a.reputable_count) ?? num(h.active_count),
+      lowest, lowestTotal, listings, auctions, binCount: num(a.bin_count), auctionCount: num(a.auction_count), scanned_at: a.scanned_at, synced_at: w.synced_at || null, refAt: w.reference_updated_at || null, activeCount: num(a.reputable_count) ?? num(h.active_count),
       dist: effBuy && med7 ? ((med7 - effBuy) / effBuy) * 100 : null,
       askVsMed: lowest?.total != null && med7 ? (lowest.total / med7 - 1) * 100 : null };
   });

@@ -5,7 +5,7 @@ import { spark, priceChart, radar, phaseColor } from "./charts.js";
 import { esc, money, pct, tCT, dCT, ago } from "./util.js";
 import { priceBtn } from "./price.js";
 import { alertPrice, alertActive } from "./fields.js";
-import { sigCompact, sigFull } from "./signals.js";
+import { sigCompact, sigFull, freshTag } from "./signals.js";
 import { bottomSection, bottomModel, meterHtml, phaseChip, fmtWindow } from "./bottom.js";
 
 const TEAM = [
@@ -30,7 +30,7 @@ function shell(body, tab) {
   const scanErr = scan?.errors?.length ? ` · <span class="warn">${scan.errors.length} card${scan.errors.length > 1 ? "s" : ""} failed last scan</span>` : "";
   return `<header class="top"><a class="brand" href="#/deals"><span class="mk" aria-hidden="true">◆</span><span>COMMAND CENTER</span></a>
     <nav class="topnav">${nav}</nav>
-    <div class="fresh">listings ${act ? `${tCT(act)} <small>(${ago(act)})</small>` : "—"} · sold thru ${sold || "—"}${scanErr}${D.backend()?.signOut ? ` · <a class="link" href="#/account">🔑 password</a> · <button class="link" id="signout">sign out</button>` : ""}</div></header>${pwBanner()}
+    <div class="fresh">${freshTag("listings", act)} · ${freshTag("trend", S.model?.cards.map((c) => c.refAt || c.synced_at).filter(Boolean).sort().at(-1))} · sold thru ${sold || "—"}${scanErr}${D.backend()?.signOut ? ` · <a class="link" href="#/account">🔑 password</a> · <button class="link" id="signout">sign out</button>` : ""}</div></header>${pwBanner()}
     ${S.error ? `<div class="err" role="alert">Data problem: ${esc(S.error)}</div>` : ""}
     <main>${body}</main><nav class="tabs">${nav}</nav>`;
 }
@@ -172,7 +172,7 @@ function vCard(id) {
     : c.sug.buy == null ? `<div class="st"><small>SUGGESTED BUY-BELOW <span class="sugg">research</span></small><b>—</b>no suggested zone yet<br><small>no target set</small></div>`
     : `<div class="st"><small>SUGGESTED BUY-BELOW <span class="sugg">research</span></small><b class="grn">${money(c.sug.buy)}</b>${c.dist != null ? (c.dist <= 0 ? "median in zone" : pct(c.dist) + " to go") : "no zone yet"}<br><small>no target set</small></div>`;
   return `<a class="back" href="#/cards">← All cards</a><section class="cardhead"><h1>${esc(c.name)} <span>${esc(c.number)}</span></h1><p>${c.variant ? esc(c.variant) + " · " : ""}${c.lang === "JP" ? "Japanese" : "English"} · raw · eBay sold comps, sellers ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</p></section>
-  ${sigFull(c, l ? priceBtn(l, { key: "sig-" + c.id, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested buy-below" }) : "")}${targetExplainer(c)}<div class="stats"><div class="st"><small>7D SOLD MEDIAN</small><b>${money(c.med7)}</b>${c.s7 != null ? c.s7 + " sales" : ""}${c.trend ? ` · trend <b class="inl">${esc(c.trend)}</b>` : ""}<br>30d ${money(c.med30)}${c.s30 != null ? ` (${c.s30} sales)` : ""}${c.lastSale ? ` · last $${esc(c.lastSale.replace("@", " on "))}` : ""}</div>
+  ${sigFull(c, l ? priceBtn(l, { key: "sig-" + c.id, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested buy-below" }) : "")}<div class="stats"><div class="st"><small>7D SOLD MEDIAN</small><b>${money(c.med7)}</b>${c.s7 != null ? c.s7 + " sales" : ""}${c.trend ? ` · trend <b class="inl">${esc(c.trend)}</b>` : ""}<br>30d ${money(c.med30)}${c.s30 != null ? ` (${c.s30} sales)` : ""}${c.lastSale ? ` · last $${esc(c.lastSale.replace("@", " on "))}` : ""}</div>
   <div class="st"><small>LOWEST REPUTABLE ASK</small><b class="pink">${money(l?.total)}</b>${c.askVsMed != null ? pct(c.askVsMed, 1) + " vs median" : "no listing"}</div>${tgt}
   <div class="st"><small>ACTIVE (REPUTABLE)</small><b>${c.activeCount ?? "—"}</b>${c.ebayTotal != null ? `of ${c.ebayTotal.toLocaleString()} on eBay · ` : ""}scanned ${tCT(c.scanned_at)}</div></div>
   ${l ? `<div class="lowl"><div class="lowp">Lowest reputable ${priceBtn(l, { key: "low-" + c.id, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested buy-below" })}</div>${l.title ? `“${esc(l.title)}” ` : ""}<span class="badges">${legit(l)}${badges(l)}</span>${l.url ? ` <a href="${esc(l.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</div>` : ""}
@@ -341,4 +341,18 @@ async function start() {
   }
   start();
 })();
-if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch((e) => console.warn("sw", e)));
+// Service worker: check for a new version on load, every 10 min and when the tab regains focus; when a new one takes control, show a banner (auto-reload if the page is hidden).
+if ("serviceWorker" in navigator) addEventListener("load", async () => {
+  try {
+    const had = !!navigator.serviceWorker.controller;
+    const reg = await navigator.serviceWorker.register("sw.js", { updateViaCache: "none" });
+    const check = () => reg.update().catch(() => {});
+    setInterval(check, 600e3); document.addEventListener("visibilitychange", () => { if (!document.hidden) check(); });
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!had) return; if (document.hidden) return location.reload();
+      if (document.getElementById("updbar")) return;
+      const b = document.createElement("div"); b.id = "updbar"; b.className = "updbar"; b.setAttribute("role", "status");
+      b.innerHTML = `New version of Command Center ready. <button type="button">Reload</button>`; b.querySelector("button").onclick = () => location.reload(); document.body.append(b);
+    });
+  } catch (e) { console.warn("sw", e); }
+});

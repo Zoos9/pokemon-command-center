@@ -1,11 +1,12 @@
 // "Where's the bottom?" — price curve since release, predicted bottom band, meter, trend phase.
 // Every piece degrades on its own: missing fields hide that piece or say "not enough data". No invented numbers.
 import { money, esc } from "./util.js";
+import { STAGES, stageInfo } from "./fields.js";
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const ym = (d) => { const m = /^(\d{4})-(\d{2})/.exec(d || ""); return m ? `${MON[+m[2] - 1]} ${m[1]}` : esc(d || ""); };
 export const fmtWindow = (start, end, text) => { if (!start && text && text.includes("/")) [start, end] = text.split("/"); return start ? `${ym(start)} – ${ym(end)}` : text ? esc(text) : null; };
 
-const PH = { "falling fast": ["#ff4d6d", "⇊"], falling: ["#ff7a45", "↓"], slowing: ["#ff9f1c", "↘"], flat: ["#c9b458", "→"], bottoming: ["#ffcb05", "◡"], rising: ["#2ee6a6", "↗"] };
+const PH = new Proxy({}, { get: (_, k) => { const i = stageInfo(k); return i ? [i.col, i.ic] : undefined; } });   // all stage styling lives in fields.js
 const phKey = (p) => (p ? String(p).toLowerCase() : null);
 
 export function bottomModel(c) {
@@ -80,5 +81,19 @@ function curve(m, small) {
   [0, Math.floor((pts.length - 1) / 2), pts.length - 1].forEach((i) => (s += `<text x="${X(i)}" y="${H - 7}" text-anchor="middle" class="ax">${esc(String(pts[i][0]).slice(5))}</text>`));
 
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Price curve since release">${s}</svg>
-  <div class="legend">${wS && !winOn ? `<span class="bwinl2">→ expected bottom ${fmtWindow(m.wStart, m.wEnd)} (off chart, future)</span>` : ""}${off.length ? `<span>↑ ${off.length} spike day${off.length > 1 ? "s" : ""} clipped at the top</span>` : ""}<span><i class="lg-bc"></i>${m.seriesSrc === "official" ? `daily sold median (outliers trimmed${pts.some((p) => p[1] == null) ? "; gaps = all sales trimmed" : ""})` : `daily median of sold comps (outliers trimmed${m.trimmedN ? `: ${m.trimmedN} dropped` : ""}; ${pts.length} days, derived here)`}</span><span><i class="lg-bt"></i>${m.lineToday != null && m.slope != null ? `Alert Desk trend (${m.twin || 14}d, ${m.slope > 0 ? "+" : ""}${(+m.slope).toFixed(1)}%/day)` : "no official trend line yet"}</span>${pts.some((p) => p[2] != null) ? `<span><i class="lg-br"></i>3-day rolling median</span>` : ""}${m.hasZone ? `<span><i class="lg-bb"></i>${m.zLbl}${m.centre != null ? " (dashed = centre)" : ""}</span>` : ""}${m.best != null ? `<span><i class="lg-bd"></i>best listing today (item+ship)</span>` : ""}</div>`;
+  ${legend(m, pts, off, winOn, wS)}`;
 }
+// Legend: one row per thing actually drawn, with its true meaning (see curve() above).
+function legend(m, pts, off, winOn, wS) {
+  const it = (sw, name, txt) => `<li><i class="sw ${sw}"></i><b>${name}</b> <span>${txt}</span></li>`, L = [];
+  L.push(it("y", "Yellow line + dots", m.seriesSrc === "official" ? `daily median of sold prices (Alert Desk, outliers trimmed)${pts.some((p) => p[1] == null) ? "; breaks = days where every sale was trimmed" : ""}` : `daily median of sold comps, computed here (outliers trimmed${m.trimmedN ? `: ${m.trimmedN} dropped` : ""})`));
+  if (pts.some((p) => p[2] != null)) L.push(it("g", "Gray line", "3-day rolling median: smooths out single-day jumps"));
+  if (m.lineToday != null && m.slope != null) L.push(it("r", "Red dashed line", `Alert Desk trend: ends at today's trend value ${money(m.lineToday)}, sloping ${m.slope > 0 ? "+" : ""}${(+m.slope).toFixed(1)}%/day over ${m.twin || 14} days. Fair price comes from this (capped at the 3-day median if the line overshoots).`));
+  if (m.hasZone) L.push(it("gb", "Green box", `${m.zLbl}: Researcher's range ${money(m.zl)}–${money(m.zh)}${m.centre != null ? "; dashed green line = its middle" : ""}`));
+  if (winOn) L.push(it("pb", "Purple box", "when the Researcher expects the bottom (time window)"));
+  else if (wS) L.push(it("pb", "Expected bottom", `${fmtWindow(m.wStart, m.wEnd)}: beyond the chart's time range`));
+  if (m.best != null) L.push(it("p", "Pink dot", `cheapest reputable listing today, item + shipping (${money(m.best)})`));
+  if (off.length) L.push(it("yt", "Yellow ▲", `${off.length} spike day${off.length > 1 ? "s" : ""} above the chart, clipped; value shown`));
+  return `<ul class="legend2" aria-label="Chart legend">${L.join("")}</ul>`;
+}
+
