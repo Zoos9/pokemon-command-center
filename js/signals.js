@@ -41,11 +41,11 @@ export function sig(c) {
   const rebound = stage === "rising" && t.off_peak_trend != null && t.off_peak_trend <= REBOUND_PCT;   // rising over the window but still below the peak
   return { stage, slope: t.slope, postPeak: t.postPeakSlope, slopeBasis: t.slopeBasis, fair: r.fair, capped: r.fairCapped, lineToday: r.lineToday, ref: r.reference, pct: r.pct, p25: r.p25, k: r.k, askAdj, target, kind: r.kind, manual: r.manual,
     leading: r.leading, competitiveN: r.competitiveN, asksTotalN: r.asksTotalN, undercutN: r.undercutN, undercutShare: r.undercutShare,
-    zl, zm, zh, ceil, basis, win: fmtWindow(c.sug.wStart, c.sug.wEnd, c.sug.wText), conf: c.sug.conf, room, offPeak: t.off_peak, peakSrc: t.peakSrc, insuff: c.sug.insuff, askFloor: r.askFloor, sourceText: r.sourceText, refAt: c.refAt || c.synced_at, peak: t.peak, peakDate: t.peak_date, twin: t.win, price, status, reason, rebound };
+    zl, zm, zh, ceil, basis, win: fmtWindow(c.sug.wStart, c.sug.wEnd, c.sug.wText), conf: c.sug.conf, room, offPeak: t.off_peak, offPeakTrend: t.off_peak_trend, peakSrc: t.peakSrc, insuff: c.sug.insuff, askFloor: r.askFloor, sourceText: r.sourceText, refAt: c.refAt || c.synced_at, peak: t.peak, peakDate: t.peak_date, twin: t.win, price, status, reason, rebound };
 }
 const pctLbl = (s) => (s.pct != null ? `${Math.round(s.pct * 1000) / 10}%` : "—%");
 export const stagePill = (s) => { const i = stageInfo(s.stage);
-  return i ? `<span class="stg" style="background:${i.col}">${i.ic} ${esc(s.stage)} <b>${p1(s.slope, true)}/d</b>${basisLbl(s.slopeBasis) ? ` <small>${basisLbl(s.slopeBasis)}</small>` : ""}</span>${s.rebound ? `<span class="stg2" title="Rising over the trend window, but still below its peak">${p1(c.trendData.off_peak_trend)} vs peak</span>` : ""}`
+  return i ? `<span class="stg" style="background:${i.col}">${i.ic} ${esc(s.stage)} <b>${p1(s.slope, true)}/d</b>${basisLbl(s.slopeBasis) ? ` <small>${basisLbl(s.slopeBasis)}</small>` : ""}</span>${s.rebound ? `<span class="stg2" title="Rising over the trend window, but still below its peak">${p1(s.offPeakTrend)} vs peak</span>` : ""}`
     : `<span class="stg none">trend pending</span>`; };
 export const statusPill = (s) => s.status ? `<span class="sts ${s.status.toLowerCase()}">${s.status}</span>` : `<span class="sts none">—</span>`;
 
