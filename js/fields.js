@@ -37,6 +37,7 @@ export const TABLES = {
   research_calls:  { fields: { date: "date", card_id: "card_id", card: "card", call: "call", prediction: "prediction", confidence: "confidence", phase: "phase", zone_low: "zone_low", zone_high: "zone_high", buy_below: "buy_below", status: "status", data: "data", evidence_links: "evidence_links", review_by: "review_by" } },
   card_history:    { fields: { ts: "ts", date: "date", card_id: "card_id", median_7d: "median_7d", median_30d: "median_30d", sales_7d: "sales_7d", sales_30d: "sales_30d", last_sale: "last_sale", trend: "trend", active_count: "active_reputable_count", ebay_total: "ebay_total", lowest_ask: "lowest_reputable_ask", ask_vs_median_7d_pct: "ask_vs_median_7d_pct", outliers_dropped: "outliers_dropped" } },
   reports:         { fields: { id: "id", title: "name", date: "date", kind: "kind", body: "markdown" } },
+  papertrade:      { fields: { id: "id", kind: "kind", portfolio: "portfolio", ts: "ts", date: "date", data: "data" } },
 };
 // Listing objects inside active_snapshot.lowest_reputable / listings[] / auctions_ending_soon[].
 // `image` exists in the data but is deliberately NOT mapped (seller photos of copyrighted card art).

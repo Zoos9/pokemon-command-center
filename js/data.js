@@ -23,6 +23,7 @@ export const getFeed = load("feed");
 export const getResearchCalls = load("research_calls");
 export const getCardHistory = load("card_history");
 export const getReports = load("reports");
+export const getPaperTrade = load("papertrade");
 export const subscribeFeed = (cb) => adapter.subscribe("feed", (rows) => cb(rows.map((r) => mapRow("feed", r))));
 export const subscribeAlerts = (cb) => adapter.subscribe("alerts", (rows) => cb(rows.map((r) => mapRow("alerts", r))));
 // Fires when active_snapshot / scans / watchlist change (Supabase realtime). Local adapter: no-op (app polls).

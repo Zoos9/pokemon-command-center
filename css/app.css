@@ -155,3 +155,11 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .grid>*,.grid .cl{min-width:0}.mini{min-width:0;overflow-wrap:anywhere}.insuf{overflow-wrap:anywhere}
 .stg{white-space:normal!important;max-width:100%}.sgr{flex-wrap:wrap;gap:4px}
 .frrow .fr{white-space:normal}
+
+/* paper trading (2026-10-25) */
+.ptscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}.pttbl td,.pttbl th{white-space:nowrap}.pttr td:last-child,.pttr td:nth-child(3){white-space:normal;min-width:180px}
+.pttbl .up{color:var(--grn)}.pttbl .dn{color:var(--red)}.ptport summary .up{color:var(--grn)}.ptport summary .dn{color:var(--red)}
+.ptport>summary{cursor:pointer;font-size:17px;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;min-height:32px}.ptport h3{margin:16px 0 6px;font-size:15px;color:var(--mut)}
+.ptdot{width:12px;height:12px;border-radius:50%;display:inline-block}.ptside{font:700 11px var(--mono);padding:2px 6px;border-radius:5px;color:var(--bg)}.ptside.buy{background:var(--grn)}.ptside.sell{background:var(--pink)}
+.ptcurve{width:100%;height:auto;max-height:280px}.ptleg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--mut)}.ptleg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
+@media (max-width:600px){.pttbl{font-size:13px}.ptport>summary{font-size:15px}}

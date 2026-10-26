@@ -6,6 +6,7 @@ import { esc, money, pct, tCT, dCT, ago } from "./util.js";
 import { priceBtn } from "./price.js";
 import { alertPrice, alertActive } from "./fields.js";
 import { sigCompact, sigFull, freshTag } from "./signals.js";
+import { vPaper } from "./paper.js";
 import { bottomSection, bottomModel, meterHtml, phaseChip, fmtWindow } from "./bottom.js";
 
 const TEAM = [
@@ -25,7 +26,7 @@ const route = () => (location.hash.replace(/^#\/?/, "") || "deals").split("/");
 function shell(body, tab) {
   const scan = S.scans.at(-1), act = S.model?.cards.map((c) => c.scanned_at).filter(Boolean).sort().at(-1);
   const sold = S.model?.cards.flatMap((c) => c.sales.slice(-1).map((s) => s.sold_date)).sort().at(-1);
-  const tabs = [["deals", "💸", "Deals"], ["radar", "📡", "Radar"], ["cards", "📈", "Cards"], ["team", "💬", "Team"]];
+  const tabs = [["deals", "💸", "Deals"], ["radar", "📡", "Radar"], ["cards", "📈", "Cards"], ["paper", "🧪", "Paper"], ["team", "💬", "Team"]];
   const nav = tabs.map(([k, i, l]) => `<a href="#/${k}" class="${tab === k ? "on" : ""}" ${tab === k ? 'aria-current="page"' : ""}><b aria-hidden="true">${i}</b>${l}</a>`).join("");
   const scanErr = scan?.errors?.length ? ` · <span class="warn">${scan.errors.length} card${scan.errors.length > 1 ? "s" : ""} failed last scan</span>` : "";
   return `<header class="top"><a class="brand" href="#/deals"><span class="mk" aria-hidden="true">◆</span><span>COMMAND CENTER</span></a>
@@ -199,7 +200,7 @@ const detKey = (d) => d.dataset.k || (d.querySelector("summary")?.textContent ||
 function render(force) {
   if (!S.model) return;
   const [r, arg] = route(), tab = r === "card" ? "cards" : r;
-  const views = { deals: vDeals, radar: vRadar, cards: vCards, card: () => vCard(arg), team: vTeam, account: vAccount };
+  const views = { deals: vDeals, radar: vRadar, cards: vCards, card: () => vCard(arg), team: vTeam, account: vAccount, paper: () => vPaper(S.paper) };
   const y = window.scrollY, key = location.hash;
   if (r === "account" && key === lastKey && !force) return;   // don't wipe a half-typed password on data polls
   const html = shell((views[r] || vDeals)(), views[r] ? tab : "deals");
@@ -215,7 +216,7 @@ function render(force) {
   }
   if (key !== lastKey) window.scrollTo(0, 0); else window.scrollTo(0, y);
   lastKey = key;
-  document.title = `${{ deals: "Deals", radar: "Radar", cards: "Cards", card: S.model.byId[decodeURIComponent(arg || "")]?.name || "Card", team: "Team" }[r] || "Deals"} · Command Center`;
+  document.title = `${{ deals: "Deals", radar: "Radar", cards: "Cards", card: S.model.byId[decodeURIComponent(arg || "")]?.name || "Card", team: "Team", paper: "Paper Trading" }[r] || "Deals"} · Command Center`;
   bind();
 }
 function bind() {
@@ -232,6 +233,7 @@ async function loadAll() {
   try {
     const [watchlist, sold, active, history, calls, scans, reports] = await Promise.all([D.getWatchlist(), D.getSoldSales(), D.getActiveSnapshot(), D.getCardHistory(), D.getResearchCalls(), D.getScans(), D.getReports()]);
     S.model = buildModel({ watchlist, sold, active, history, calls }); S.scans = scans; S.reports = reports; S.error = null;
+    try { S.paper = await D.getPaperTrade(); } catch (e) { console.warn("papertrade", e.message || e); S.paper = S.paper || []; }
   } catch (e) { console.error(e); S.error = e.message; if (!S.model) { $app.innerHTML = `<div class="center"><h1>Couldn't load data</h1><p>${esc(e.message)}</p></div>`; return; } }
   render();
 }

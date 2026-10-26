@@ -27,6 +27,7 @@ export async function createSupabase() {
     research_calls: async () => (await P.researchCalls()).reverse(),
     card_history: () => all("card_history", "*", "date"),
     reports: () => all("reports", "id,name,date,kind,markdown", "date"),
+    papertrade: () => all("papertrade", "id,kind,portfolio,ts,date,data", "id"),
   };
 
   // --- live updates: one channel, debounced per group, polling backup. Identical results are dropped

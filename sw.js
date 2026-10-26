@@ -1,6 +1,6 @@
 // Everything network-first (cache = offline fallback only) so desktop never shows a stale build. Data (./data/*.json, Supabase): network-first, cache fallback.
-const V = "cc-v23";
-const SHELL = ["./", "index.html", "js/config.js", "js/cfg.js", "js/pokedata.js", "css/app.css", "js/app.js", "js/data.js", "js/fields.js", "js/derive.js", "js/charts.js", "js/util.js", "js/price.js", "js/bottom.js", "js/signals.js", "js/adapters/local.js", "js/adapters/supabase.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
+const V = "cc-v24";
+const SHELL = ["./", "index.html", "js/config.js", "js/cfg.js", "js/pokedata.js", "css/app.css", "js/app.js", "js/data.js", "js/fields.js", "js/derive.js", "js/charts.js", "js/util.js", "js/price.js", "js/bottom.js", "js/signals.js", "js/paper.js", "js/adapters/local.js", "js/adapters/supabase.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png"];
 self.addEventListener("install", (e) => { e.waitUntil(caches.open(V).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
 self.addEventListener("activate", (e) => { e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== V).map((k) => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener("fetch", (e) => {
