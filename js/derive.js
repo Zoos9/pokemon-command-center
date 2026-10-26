@@ -2,6 +2,7 @@
 import { CONFIG } from "./cfg.js";
 import { mapListing, withLowestFallback, pick } from "./fields.js";
 import { median, num } from "./util.js";
+import { roiFor, DEFAULT_FEES } from "./roi.js";
 
 const short = (name) => { const m = (name || "").match(/^(.*?)\s*\((.*)\)\s*$/); return m ? [m[1], m[2].split(",")[0]] : [name || "?", ""]; };
 
@@ -55,10 +56,23 @@ export function buildModel(t) {
       dist: effBuy && med7 ? ((med7 - effBuy) / effBuy) * 100 : null,
       askVsMed: lowest?.total != null && med7 ? (lowest.total / med7 - 1) * 100 : null };
   });
+  for (const c of cards) c.roi = roiOf(c, t.watchlist.find((w) => w.id === c.id));
   const setCall = t.calls.filter((r) => r.card_id === "SET").sort((x, y) => (x.date || "").localeCompare(y.date || "")).at(-1) || null;
   return { cards, byId: Object.fromEntries(cards.map((c) => [c.id, c])), setCall };
 }
 
+// ROI after eBay fees (display only). Target: your sell_above first, else the researcher's 12-mo estimate (watchlist.json target_12mo).
+export const FEES = CONFIG.FEES ? { ...DEFAULT_FEES, ...CONFIG.FEES, ship: { ...DEFAULT_FEES.ship, ...(CONFIG.FEES.ship || {}) } } : DEFAULT_FEES;
+function roiOf(c, w) {
+  const d = (w && w.data) || {}, t12 = num(w?.target_12mo ?? d.target_12mo);
+  const target = c.target.sell ?? t12, targetSrc = c.target.sell != null ? "sell_above" : t12 != null ? "research" : null;
+  const ask = okSeller(c.lowest) ? c.lowest.total : null;
+  const r = roiFor({ name: c.full, category: w?.research_category ?? d.research_category ?? c.sug.category, ask, buyBelow: c.target.buy, target, targetSrc,
+    targetConf: w?.target_12mo_confidence ?? d.target_12mo_confidence ?? null, zoneLow: c.sug.low, zoneHigh: c.sug.high, med7: c.med7 }, FEES);
+  r.targetNote = targetSrc === "research" ? (w?.target_12mo_source ?? d.target_12mo_source ?? "research estimate") : null;
+  return r;
+}
+export function netUpside(cards, n = 5) { return cards.filter((c) => c.roi?.atAsk?.multAtTarget != null).sort((a, b) => b.roi.atAsk.multAtTarget - a.roi.atAsk.multAtTarget).slice(0, n); }
 const okSeller = (l) => l && l.total != null && (l.feedback == null || +l.feedback >= CONFIG.MIN_SELLER_FEEDBACK);
 // Flags that aren't about legitimacy (shipping just not quoted) are shown separately, not as warnings.
 export const warnFlags = (l) => (l?.flags || []).filter((f) => !/shipping not quoted|auction, current bid/i.test(f));

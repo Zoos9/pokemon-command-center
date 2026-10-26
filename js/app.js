@@ -1,6 +1,6 @@
 import { CONFIG } from "./cfg.js";
 import * as D from "./data.js";
-import { buildModel, deals, warnFlags } from "./derive.js";
+import { buildModel, deals, warnFlags, netUpside, FEES } from "./derive.js";
 import { spark, priceChart, radar, phaseColor } from "./charts.js";
 import { esc, money, pct, tCT, dCT, ago } from "./util.js";
 import { priceBtn } from "./price.js";
@@ -64,6 +64,41 @@ function targetExplainer(c) {
   return `<section class="texp"><div class="tline">${head}</div>${ref}<div class="tsub">sold: last ${r.win ?? "?"}d, n=${r.soldN ?? "?"} · asks n=${r.activeN ?? "?"}${tr}${r.updated ? ` · updated ${dCT(r.updated)}` : ""}</div>${c.wflags.length ? `<div class="tflags">${flagBadges(c.wflags)}</div>` : ""}${c.sug.buy != null ? `<div class="tsug">Researcher's suggested buy-below ${money(c.sug.buy)}${c.sug.low != null && c.sug.high != null ? ` (zone ${money(c.sug.low)}–${money(c.sug.high)})` : ""} · context only</div>` : ""}</section>`;
 }
 
+
+// ---------- ROI after eBay fees (js/roi.js). Display only.
+const m2 = (v) => (v == null || isNaN(v) ? "—" : "$" + (+v).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+const xf = (v) => (v == null ? "—" : (+v).toFixed(2) + "×");
+const VERDICT = { loss: ["roil", "❌ loses money after fees"], thin: ["roit", "⚠ thin margin"], ok: ["roio", "clears fees"], good: ["roig", "✓ 1.5×+ after fees"] };
+function roiDealLine(c) {
+  const r = c.roi; if (!r || r.headline == null) return `<div class="roid"><small>net after fees: no ask/target to compute</small></div>`;
+  const b = r.headlineBasis === "target" ? r.atAsk : null, [cls, lbl] = VERDICT[r.verdict] || ["", ""];
+  const txt = b ? `sell at 12-mo target ${m2(r.target)} → net <b>${m2(b.netAtTarget)}</b> on ${m2(b.cost)} cost = <b>${xf(b.multAtTarget)}</b> (${b.profitAtTarget >= 0 ? "+" : ""}${m2(b.profitAtTarget)})`
+    : `no 12-mo target · resell now at 7d median ${m2(r.flip.sale)} → net <b>${m2(r.flip.net)}</b> on ${m2(r.atAsk?.cost)} cost = <b>${xf(r.flip.mult)}</b>`;
+  return `<div class="roid"><span class="roiv ${cls}">${lbl}</span> <small>${txt}</small></div>`;
+}
+function roiPanel(c) {
+  const r = c.roi; if (!r) return "";
+  const A = r.atAsk, B = r.atBuy; if (!A && !B) return `<section class="panel roi"><h2>💰 ROI after eBay fees</h2><p class="empty">No reputable ask and no buy-below, nothing to compute.</p></section>`;
+  const col = (b, k, f = m2) => `<td class="n">${b ? f(b[k]) : "—"}</td>`;
+  const rows = [["Cost basis (+6.5% tax)", "cost"], ["Break-even sale", "breakeven"], ["Sale for 1.5× net", "x15"], ["Sale for 2× net", "x2"], ["Sale for 3× net", "x3"]];
+  const tr = r.target != null ? [["Net if sold at target", "netAtTarget"], ["Net multiple at target", "multAtTarget", xf], ["Net profit at target", "profitAtTarget"]] : [];
+  const tline = r.target != null ? `12-mo target <b>${m2(r.target)}</b> ${r.targetSrc === "sell_above" ? "(your sell_above)" : `<span class="sugg">research est.${r.targetConf ? " · " + esc(r.targetConf) + " conf." : ""}</span>`}`
+    : `<b>No 12-mo target yet</b> (no sell_above, no research estimate), so no upside number. ${r.flip ? `Resell now at 7d median ${m2(r.flip.sale)} would net ${m2(r.flip.net)} = ${xf(r.flip.mult)}.` : ""}`;
+  const f = FEES, shipTxt = r.kind === "single" ? `single: ${m2(f.ship.pwe)} envelope under ${m2(f.ship.pweMaxSale)}, ${m2(f.ship.bmwt)} tracked mailer above` : r.kind === "etb" ? `ETB/bundle ${m2(f.ship.etb)}` : `box/UPC ${m2(f.ship.box)}`;
+  return `<section class="panel roi"><h2>💰 ROI after eBay fees ${r.actionable ? `<span class="roiv roig">BUY: ask ≤ buy-below & ≥1.5× at target</span>` : ""}</h2>
+  <p class="roit2">${tline}</p>
+  <table class="tbl roitbl"><thead><tr><th></th><th class="n">at lowest ask${A ? ` ${m2(A.buy)}` : ""}</th><th class="n">at buy-below${B ? ` ${m2(B.buy)}` : ""}</th></tr></thead><tbody>
+  ${[...rows, ...tr].map(([l, k, fm]) => `<tr><td>${l}</td>${col(A, k, fm)}${col(B, k, fm)}</tr>`).join("")}</tbody></table>
+  ${r.plan ? `<p class="roiplan">🧭 <b>Exit plan.</b> ${esc(r.plan)}</p>` : ""}
+  <p class="note">Net = sale × (1 − ${(f.ebayFeePct * 100).toFixed(2)}%) − ${m2(f.perOrderFee)} − outbound shipping (${shipTxt}). Cost = item + shipping × ${(1 + f.taxRate).toFixed(3)}. Prices are item+ship from seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb listings.${r.targetNote ? ` Target source: ${esc(r.targetNote)}.` : ""}</p></section>`;
+}
+function netUpsideBox() {
+  const top = netUpside(S.model.cards, 5); if (!top.length) return "";
+  return `<section class="panel"><h2>💰 Best net upside <small>12-mo target vs today's lowest ask, after eBay fees</small></h2><table class="tbl roitbl"><thead><tr><th>Item</th><th class="n">Ask</th><th class="n">Target</th><th class="n">Net ×</th><th class="n hide-s">Profit</th></tr></thead><tbody>
+  ${top.map((c) => `<tr onclick="location.hash='#/card/${encodeURIComponent(c.id)}'"><td>${cardLink(c, cname(c))}${c.roi.actionable ? ` <span class="roiv roig">BUY</span>` : ""}</td><td class="n">${m2(c.roi.atAsk.buy)}</td><td class="n">${m2(c.roi.target)}</td><td class="n"><b class="${c.roi.atAsk.multAtTarget >= 1.5 ? "pos" : c.roi.atAsk.multAtTarget < 1 ? "neg" : ""}">${xf(c.roi.atAsk.multAtTarget)}</b></td><td class="n hide-s">${m2(c.roi.atAsk.profitAtTarget)}</td></tr>`).join("")}</tbody></table>
+  <p class="note">Only ${S.model.cards.filter((c) => c.roi?.target != null).length} items have a 12-mo target (research estimates, not observed prices). Items without one aren't ranked.</p></section>`;
+}
+
 // ---------- Deals
 function dealCard(c, kind) {
   const ref = kind === "target" ? c.target.buy : c.sug.buy, l = c.lowest, refLabel = kind === "target" ? "your target" : "suggested buy-below";
@@ -71,7 +106,7 @@ function dealCard(c, kind) {
   // The price breakdown sits OUTSIDE the card link so tapping it expands instead of navigating.
   return `<article class="deal ${kind}">${cardLink(c, `<div class="tag">${kind === "target" ? "✅ UNDER YOUR TARGET" : "💡 UNDER SUGGESTED ZONE · not an alert"}</div>
     <div class="dt">${cname(c)}</div>${l.title ? `<div class="ltitle">“${esc(l.title)}”</div>` : ""}`)}
-    ${(() => { const bm = bottomModel(c), mt = meterHtml(bm, true), ch = phaseChip(bm); return mt || ch ? `<div class="dbot">${ch}${mt}</div>` : ""; })()}<div class="big">${priceBtn(l, { key: "deal-" + c.id, target: ref, targetLabel: refLabel })}</div>${cardLink(c, sigCompact(c))}
+    ${(() => { const bm = bottomModel(c), mt = meterHtml(bm, true), ch = phaseChip(bm); return mt || ch ? `<div class="dbot">${ch}${mt}</div>` : ""; })()}<div class="big">${priceBtn(l, { key: "deal-" + c.id, target: ref, targetLabel: refLabel })}</div>${cardLink(c, sigCompact(c))}${roiDealLine(c)}
     ${cardLink(c, `<div class="vs">7d sold median <b>${money(c.med7)}</b> · ${refLabel} <b>${money(ref)}</b> <small>(item+ship ${money(l.total)})</small></div>
     ${under != null ? `<div class="pill">▼ ${under.toFixed(0)}% under market</div>` : ""}
     <div class="sel">seller <b>${esc(l.seller || "?")}</b> · ${fb(l)} · ${esc(l.condition || "")}</div><div class="badges">${legit(l)}${badges(l)}${flagBadges([...new Set([...cardAlertFlags(c), ...c.wflags])])}</div>`)}
@@ -97,6 +132,7 @@ function vDeals() {
     ${sell}
     ${d.suggested.length ? `<section><h2>💡 Under suggested zone <small>researcher's zone, not your target · ${money(CONFIG.MIN_CARD_VALUE)}+ cards · seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</small></h2><div class="deals">${d.suggested.map((c) => dealCard(c, "suggested")).join("")}</div></section>` : ""}
     ${bulk}
+    ${netUpsideBox()}
     <div class="split"><section><h2>🎯 Closest to buy zone</h2><table class="tbl"><thead><tr><th>Card</th><th>Phase</th><th>7d med</th><th>Buy &lt;</th><th>Distance</th><th class="hide-s">Trend</th><th class="hide-s">Low ask</th><th class="hide-s">Sales 7d</th></tr></thead><tbody>${rows}</tbody></table></section>
     <aside>${alertsBox(d.anyTargets)}<section class="panel"><h2>📡 Team live <a class="more" href="#/team">all →</a></h2>${feedList(6)}</section></aside></div>`;
 }
@@ -158,7 +194,7 @@ function vCards() {
   <div class="filters"><input id="q" type="search" placeholder="Search card or number" value="${esc(S.q)}" aria-label="Search cards">
   <div class="seg">${["all", "EN", "JP"].map((l) => `<button data-lang="${l}" class="${S.lang === l ? "on" : ""}">${l}</button>`).join("")}</div>
   <select id="sort" aria-label="Sort">${[["dist", "Closest to zone"], ["value", "Highest value"], ["name", "Name"]].map(([k, l]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div>${sigCompact(c)}</article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
+  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div>${sigCompact(c)}${c.roi?.atAsk?.multAtTarget != null ? `<div class="mrow s"><span>net @ target</span><span class="n">${xf(c.roi.atAsk.multAtTarget)}</span></div>` : ""}</article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
 }
 
 // ---------- Card page
@@ -177,7 +213,7 @@ function vCard(id) {
   <div class="st"><small>LOWEST REPUTABLE ASK</small><b class="pink">${money(l?.total)}</b>${c.askVsMed != null ? pct(c.askVsMed, 1) + " vs median" : "no listing"}</div>${tgt}
   <div class="st"><small>ACTIVE (REPUTABLE)</small><b>${c.activeCount ?? "—"}</b>${c.ebayTotal != null ? `of ${c.ebayTotal.toLocaleString()} on eBay · ` : ""}scanned ${tCT(c.scanned_at)}</div></div>
   ${l ? `<div class="lowl"><div class="lowp">Lowest reputable ${priceBtn(l, { key: "low-" + c.id, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested buy-below" })}</div>${l.title ? `“${esc(l.title)}” ` : ""}<span class="badges">${legit(l)}${badges(l)}</span>${l.url ? ` <a href="${esc(l.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</div>` : ""}
-  ${bottomSection(c, small())}<div class="cardgrid"><section class="panel">${priceChart(c, small())}<p class="note">Dots are individual eBay sold comps${c.outliers ? ` (${c.outliers} outlier${c.outliers > 1 ? "s" : ""} dropped from the median)` : ""}. Medians come from ${c.histCount} history snapshot${c.histCount === 1 ? "" : "s"}${c.histDate ? ` (${esc(c.histDate)})` : ""}; the trend line will fill in as daily snapshots accumulate.</p></section>
+  ${bottomSection(c, small())}${roiPanel(c)}<div class="cardgrid"><section class="panel">${priceChart(c, small())}<p class="note">Dots are individual eBay sold comps${c.outliers ? ` (${c.outliers} outlier${c.outliers > 1 ? "s" : ""} dropped from the median)` : ""}. Medians come from ${c.histCount} history snapshot${c.histCount === 1 ? "" : "s"}${c.histDate ? ` (${esc(c.histDate)})` : ""}; the trend line will fill in as daily snapshots accumulate.</p></section>
   <div><section class="panel call" style="border-color:${phaseColor(c.sug.phase)}">${c.sug.call ? `<h2 style="color:${phaseColor(c.sug.phase)}">Research: ${esc((c.sug.phase || "").toUpperCase())}</h2><p>${esc(c.sug.call)}</p>${c.sug.prediction ? `<p class="pred">${esc(c.sug.prediction)}</p>` : ""}<p>confidence <b>${esc(c.sug.conf || "?")}</b> · call ${esc(c.sug.date || "")} · review by ${esc(c.sug.review_by || "—")}</p>${c.sug.links.length ? `<details><summary>${c.sug.links.length} sources</summary>${c.sug.links.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, "").slice(0, 60))}</a>`).join("")}</details>` : ""}` : `<p class="empty">No research call for this card yet.</p>`}</section>
   ${c.auctions.length ? `<section class="panel"><h2>⏱ Auctions ending soon</h2><table class="tbl lst"><tbody>${c.auctions.map((x) => `<tr><td class="n">${priceBtn(x, { key: "au-" + (x.item_id || x.url), pop: true, compact: true, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested" })}<small>${x.bids ?? 0} bid${x.bids === 1 ? "" : "s"}</small></td><td>${esc(x.seller || "?")}<small>${fb(x)}</small>${x.title ? `<small class="lt">${esc(x.title)}</small>` : ""}</td><td><small>ends</small>${esc(dCT(x.end_date))}</td><td>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</td></tr>`).join("")}</tbody></table></section>` : ""}
   <section class="panel"><h2>Live BIN listings <small>reputable sellers</small></h2>${listings ? `<table class="tbl lst"><tbody>${listings}</tbody></table>${c.listings.length > 10 ? "</details>" : ""}` : `<p class="empty">No reputable listings in the last scan.</p>`}</section></div></div>`;

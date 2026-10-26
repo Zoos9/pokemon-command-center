@@ -7,4 +7,5 @@ export const CONFIG = {
   LOCAL_DATA_URL: c.localDataUrl || "../web-data/",
   POLL_MS: c.pollMs || 30000, DATA_POLL_MS: c.dataPollMs || 120000,
   MIN_SELLER_FEEDBACK: c.minSellerFeedback ?? 30, MIN_CARD_VALUE: c.minCardValue ?? 5,
+  FEES: c.fees ? { ...c.fees, ship: { ...(c.fees.ship || {}) } } : null,   // null -> roi.js DEFAULT_FEES
 };

@@ -20,6 +20,7 @@ js/adapters/supabase.js  wraps window.PokeData (auth, polling via PokeData.subsc
 js/adapters/local.js     dev only: reads ../web-data/*.json, polls
 js/derive.js             joins tables into the card model; deal / target / suggested-zone logic
 js/charts.js             inline SVG: sparklines, price chart, radar
+js/roi.js                ROI after eBay fees + exit plan (pure; constants in config.js `fees`)
 js/app.js                router + views
 ```
 Dev-only tools live outside the deployed folder, in `/home/box/pokemon-team/web-dev-tools/`:
@@ -67,3 +68,23 @@ The column map lives in `js/fields.js`. The local export (`web-dev-tools/export_
 - A clean listing gets "✓ seller N fb, no flags".
 
 **Live updates:** Supabase realtime (`postgres_changes`) on feed, alerts, active_snapshot, scans and watchlist, all on one channel. Events are debounced. Polling every 30s for feed and alerts is the backup. Results identical to the last fetch are dropped, and the page skips re-renders when its HTML hasn't changed, so an event plus a poll never renders twice.
+
+## Fee model: ROI after eBay fees (added 2026-10-26)
+Display only. It never changes alerts, `buy_below` (still 70% of reference, BUY_FRACTION 0.7), seller filters, or item+shipping pricing. Code is in `web/js/roi.js`. The constants live in `web/js/config.js` under `fees` and are easy to edit. Test: `node web-dev-tools/roi_test.mjs`.
+- **Cost basis** = buy price (item + shipping) × 1.065. The 6.5% is the sales tax Zoos pays at ZIP 62305.
+- **Net proceeds** = sale × (1 − 13.25%) − $0.40 − outbound shipping.
+- **Net multiple** = net ÷ cost. The sale price needed for m× = (m × cost + 0.40 + ship) ÷ 0.8675, solved for break-even (1×), 1.5×, 2× and 3×.
+- **Outbound shipping defaults** (estimates for label plus supplies):
+  - raw single selling under $20: $1.25 (plain envelope)
+  - raw single at $20 or more: $5.00 (tracked bubble mailer)
+  - ETB, booster bundle or other small sealed: $13.00
+  - booster box or Ultra-Premium Collection: $22.00
+  - Kind comes from `research_category` and the name. Anything `Sealed*` is sealed; "Booster Box", "Ultra-Premium Collection" and `Sealed:Premium` count as box. Everything else is a single.
+- **12-mo target**: `sell_above` if set. Otherwise it's `target_12mo` in watchlist.json, a research estimate copied from `research/opportunities-2026-10-25.md` and labelled "research est.". Only the 12 non-30th items have one. Items without a target show "No 12-mo target yet" and are never given an invented number. For those, the Deal cards show the net if the item were resold now at the 7d sold median.
+- **Card page**: shows cost basis, break-even, 1.5×/2×/3× sale prices, and net, multiple and profit at target. Each is shown at the lowest reputable ask (seller 30+ fb) and at buy_below.
+- **Exit plan**: the sell zone is the 2× net price. Stop-loss or re-evaluate if the 7d sold median breaks below the predicted bottom `zone_low`. If there's no zone, the trigger is 20% under the buy price.
+- **Deal cards**: badge thresholds are:
+  - "❌ loses money" below 1.0×
+  - "⚠ thin margin" below 1.25× (`thinMarginX`)
+  - "✓ 1.5×+" at 1.5× or more
+- **Home page**: "Best net upside" lists the top 5 by net multiple at target from today's ask. **BUY** means ask ≤ buy_below and ≥1.5× at target.

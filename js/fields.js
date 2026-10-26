@@ -24,7 +24,9 @@ export const TABLES = {
     // Alert Desk 2026-10-20 (peak/competitive work). All optional: missing column -> null -> '—'.
     post_peak_slope_pct_day: "post_peak_slope_pct_day", slope_basis: "slope_basis", leading_ask_ref: "leading_ask_ref", undercut_n: "undercut_n", undercut_share: "undercut_share",
     competitive_n: "competitive_n", asks_total_n: "asks_total_n", ask_floor: "ask_floor", stale_n: "stale_n", active_p10: "active_p10", synced_at: "synced_at",
-    research_data_status: "research_data_status", research_insufficient_reason: "research_insufficient_reason", research_note_updated_at: "research_note_updated_at", research_robust_peak: "research_robust_peak", research_robust_peak_date: "research_robust_peak_date", trend_changed_at: "trend_changed_at" } },
+    research_data_status: "research_data_status", research_insufficient_reason: "research_insufficient_reason", research_note_updated_at: "research_note_updated_at", research_robust_peak: "research_robust_peak", research_robust_peak_date: "research_robust_peak_date", trend_changed_at: "trend_changed_at",
+    // raw watchlist.json entry (jsonb); read only for optional extras like target_12mo (ROI view)
+    data: "data", target_12mo: "target_12mo", target_12mo_confidence: "target_12mo_confidence", target_12mo_source: "target_12mo_source" } },
   sold_sales:      { fields: { card_id: "card_id", item_id: "item_id", price: "price_usd", sold_date: "sold_date", condition: "condition", title: "title", url: "url", seller: "seller", seller_feedback: "seller_feedback" } },
   active_snapshot: { fields: { card_id: "card_id", scanned_at: "scanned_at", ebay_total: "ebay_total", reputable_count: "reputable_count", bin_count: "bin_count", auction_count: "auction_count", lowest_total: "lowest_total", lowest: "lowest_reputable", listings: "listings",
     // fallbacks for the lowest listing when its jsonb lacks the per-listing fields

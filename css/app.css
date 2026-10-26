@@ -163,3 +163,11 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .ptdot{width:12px;height:12px;border-radius:50%;display:inline-block}.ptside{font:700 11px var(--mono);padding:2px 6px;border-radius:5px;color:var(--bg)}.ptside.buy{background:var(--grn)}.ptside.sell{background:var(--pink)}
 .ptcurve{width:100%;height:auto;max-height:280px}.ptleg{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--mut)}.ptleg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px}
 @media (max-width:600px){.pttbl{font-size:13px}.ptport>summary{font-size:15px}}
+
+/* ROI after eBay fees (2026-10-26) */
+.roid{margin:4px 0 2px;font-size:12.5px;line-height:1.4}.roid small{color:var(--mut)}.roid b{color:#fff}
+.roiv{display:inline-block;font-weight:800;font-size:11.5px;border-radius:6px;padding:1px 7px;white-space:nowrap}
+.roil{background:#ff4d6d;color:#14102a}.roit{background:#ff9f1c;color:#14102a}.roio{border:1.5px solid #c9b458;color:#ffe680}.roig{background:#2ee6a6;color:#14102a}
+.roi h2{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.roit2{margin:4px 0 8px}.roiplan{margin:10px 0 4px;line-height:1.45}
+.roitbl td,.roitbl th{padding:5px 6px}.roitbl tbody tr{cursor:default}.roitbl .pos{color:var(--grn)}.roitbl .neg{color:var(--red)}
+@media (max-width:600px){.roitbl{font-size:13px}.roitbl th{font-size:11px}}
