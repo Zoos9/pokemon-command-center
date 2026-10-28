@@ -72,9 +72,25 @@ const VERDICT = { loss: ["roil", "❌ loses money after fees"], thin: ["roit", "
 function roiDealLine(c) {
   const r = c.roi; if (!r || r.headline == null) return `<div class="roid"><small>net after fees: no ask/target to compute</small></div>`;
   const b = r.headlineBasis === "target" ? r.atAsk : null, [cls, lbl] = VERDICT[r.verdict] || ["", ""];
-  const txt = b ? `sell at 12-mo target ${m2(r.target)} → net <b>${m2(b.netAtTarget)}</b> on ${m2(b.cost)} cost = <b>${xf(b.multAtTarget)}</b> (${b.profitAtTarget >= 0 ? "+" : ""}${m2(b.profitAtTarget)})`
+  const srcL = r.targetSrc === "precedent" ? "precedent est." : r.targetSrc === "research" ? "research est." : r.targetSrc === "sell_above" ? "your sell_above" : "";
+  const txt = b ? `sell at 12-mo target ${m2(r.target)}${srcL ? ` <span class="sugg">${srcL}</span>` : ""} → net <b>${m2(b.netAtTarget)}</b> on ${m2(b.cost)} cost = <b>${xf(b.multAtTarget)}</b> (${b.profitAtTarget >= 0 ? "+" : ""}${m2(b.profitAtTarget)})`
     : `no 12-mo target · resell now at 7d median ${m2(r.flip.sale)} → net <b>${m2(r.flip.net)}</b> on ${m2(r.atAsk?.cost)} cost = <b>${xf(r.flip.mult)}</b>`;
-  return `<div class="roid"><span class="roiv ${cls}">${lbl}</span> <small>${txt}</small></div>`;
+  return `<div class="roid"><span class="roiv ${cls}">${lbl}</span>${cand2x(c)} <small>${txt}</small></div>${upsideLine(c)}`;
+}
+// 12-mo precedent upside (watchlist upside_12mo, research/upside_12mo.py). Display only.
+const cand2x = (c) => (c.roi?.upside?.cand2x ? ` <span class="roiv roig" title="precedent mid estimate nets ≥2× after fees (${esc(c.roi.upside.cand2xBasis || "")})">2× candidate</span>` : "");
+function upsideLine(c) {
+  const u = c.roi?.upside; if (!u || u.none) return "";
+  const b = u.atBuy || u.atAsk, bl = u.atBuy ? "buy-below" : "ask";
+  return `<div class="roid"><small>12-mo <span class="sugg">precedent est.</span> ${m2(u.low)}–${m2(u.high)} (mid ${m2(u.mid)}) · ${esc(u.conf || "?")} conf. · n=${u.n ?? "?"}${b ? ` · net at ${bl}: ${xf(b.low)} / <b>${xf(b.mid)}</b> / ${xf(b.high)}` : ""}${u.zone ? "" : " · anchor is a presale/launch price, not a bottom"}</small></div>`;
+}
+function upsidePanel(c) {
+  const u = c.roi?.upside; if (!u) return "";
+  if (u.none) return `<div class="roiup"><b>12-mo precedent est.:</b> none yet (${esc(u.reason || "no data")}).</div>`;
+  const row = (lbl, a) => `<tr><td>${lbl}${a ? ` ${m2(a.buy)}` : ""}</td><td class="n">${a ? xf(a.low) : "—"}</td><td class="n"><b class="${a?.mid >= 2 ? "pos" : a?.mid < 1 ? "neg" : ""}">${a ? xf(a.mid) : "—"}</b></td><td class="n">${a ? xf(a.high) : "—"}</td></tr>`;
+  return `<div class="roiup"><p class="roit2">12-mo upside <span class="sugg">precedent est.</span> <b>${m2(u.low)} – ${m2(u.high)}</b> (mid <b>${m2(u.mid)}</b>) · ${esc(u.conf || "?")} conf. · n=${u.n ?? "?"} analogs${cand2x(c)}</p>
+  <table class="tbl roitbl"><thead><tr><th>net multiple after fees</th><th class="n">low</th><th class="n">mid</th><th class="n">high</th></tr></thead><tbody>${row("at lowest ask", u.atAsk)}${row("at buy-below", u.atBuy)}</tbody></table>
+  <p class="note">Precedent est. = anchor ${m2(u.anchor)} (${esc(u.anchorKind || "")}) × what past analogs did 12 months after their post-release bottom (multiples ${xf(u.multLow)} p10 / ${xf(u.multMid)} median / ${xf(u.multHigh)} p90; ${esc(u.pool || "")}). Backtest and era caveats: research/upside-backtest-2026-10-28.md. Most analog bottoms were in 2023-24, before the 2025 boom; not a promise.</p></div>`;
 }
 function roiPanel(c) {
   const r = c.roi; if (!r) return "";
@@ -82,11 +98,11 @@ function roiPanel(c) {
   const col = (b, k, f = m2) => `<td class="n">${b ? f(b[k]) : "—"}</td>`;
   const rows = [["Cost basis (+6.5% tax)", "cost"], ["Break-even sale", "breakeven"], ["Sale for 1.5× net", "x15"], ["Sale for 2× net", "x2"], ["Sale for 3× net", "x3"]];
   const tr = r.target != null ? [["Net if sold at target", "netAtTarget"], ["Net multiple at target", "multAtTarget", xf], ["Net profit at target", "profitAtTarget"]] : [];
-  const tline = r.target != null ? `12-mo target <b>${m2(r.target)}</b> ${r.targetSrc === "sell_above" ? "(your sell_above)" : `<span class="sugg">research est.${r.targetConf ? " · " + esc(r.targetConf) + " conf." : ""}</span>`}`
-    : `<b>No 12-mo target yet</b> (no sell_above, no research estimate), so no upside number. ${r.flip ? `Resell now at 7d median ${m2(r.flip.sale)} would net ${m2(r.flip.net)} = ${xf(r.flip.mult)}.` : ""}`;
+  const tline = r.target != null ? `12-mo target <b>${m2(r.target)}</b> ${r.targetSrc === "sell_above" ? "(your sell_above)" : `<span class="sugg">${r.targetSrc === "precedent" ? "precedent est. (mid)" : "research est."}${r.targetConf ? " · " + esc(r.targetConf) + " conf." : ""}</span>`}`
+    : `<b>No 12-mo target yet</b> (no sell_above, research or precedent estimate), so no upside number. ${r.flip ? `Resell now at 7d median ${m2(r.flip.sale)} would net ${m2(r.flip.net)} = ${xf(r.flip.mult)}.` : ""}`;
   const f = FEES, shipTxt = r.kind === "single" ? `single: ${m2(f.ship.pwe)} envelope under ${m2(f.ship.pweMaxSale)}, ${m2(f.ship.bmwt)} tracked mailer above` : r.kind === "etb" ? `ETB/bundle ${m2(f.ship.etb)}` : `box/UPC ${m2(f.ship.box)}`;
   return `<section class="panel roi"><h2>💰 ROI after eBay fees ${r.actionable ? `<span class="roiv roig">BUY: ask ≤ buy-below & ≥1.5× at target</span>` : ""}</h2>
-  <p class="roit2">${tline}</p>
+  <p class="roit2">${tline}</p>${upsidePanel(c)}
   <table class="tbl roitbl"><thead><tr><th></th><th class="n">at lowest ask${A ? ` ${m2(A.buy)}` : ""}</th><th class="n">at buy-below${B ? ` ${m2(B.buy)}` : ""}</th></tr></thead><tbody>
   ${[...rows, ...tr].map(([l, k, fm]) => `<tr><td>${l}</td>${col(A, k, fm)}${col(B, k, fm)}</tr>`).join("")}</tbody></table>
   ${r.plan ? `<p class="roiplan">🧭 <b>Exit plan.</b> ${esc(r.plan)}</p>` : ""}
@@ -95,8 +111,8 @@ function roiPanel(c) {
 function netUpsideBox() {
   const top = netUpside(S.model.cards, 5); if (!top.length) return "";
   return `<section class="panel"><h2>💰 Best net upside <small>12-mo target vs today's lowest ask, after eBay fees</small></h2><table class="tbl roitbl"><thead><tr><th>Item</th><th class="n">Ask</th><th class="n">Target</th><th class="n">Net ×</th><th class="n hide-s">Profit</th></tr></thead><tbody>
-  ${top.map((c) => `<tr onclick="location.hash='#/card/${encodeURIComponent(c.id)}'"><td>${cardLink(c, cname(c))}${c.roi.actionable ? ` <span class="roiv roig">BUY</span>` : ""}</td><td class="n">${m2(c.roi.atAsk.buy)}</td><td class="n">${m2(c.roi.target)}</td><td class="n"><b class="${c.roi.atAsk.multAtTarget >= 1.5 ? "pos" : c.roi.atAsk.multAtTarget < 1 ? "neg" : ""}">${xf(c.roi.atAsk.multAtTarget)}</b></td><td class="n hide-s">${m2(c.roi.atAsk.profitAtTarget)}</td></tr>`).join("")}</tbody></table>
-  <p class="note">Only ${S.model.cards.filter((c) => c.roi?.target != null).length} items have a 12-mo target (research estimates, not observed prices). Items without one aren't ranked.</p></section>`;
+  ${top.map((c) => `<tr onclick="location.hash='#/card/${encodeURIComponent(c.id)}'"><td>${cardLink(c, cname(c))}${c.roi.actionable ? ` <span class="roiv roig">BUY</span>` : ""}${cand2x(c)}</td><td class="n">${m2(c.roi.atAsk.buy)}</td><td class="n">${m2(c.roi.target)}<small class="sugg">${c.roi.targetSrc === "precedent" ? " prec." : c.roi.targetSrc === "research" ? " res." : ""}</small></td><td class="n"><b class="${c.roi.atAsk.multAtTarget >= 1.5 ? "pos" : c.roi.atAsk.multAtTarget < 1 ? "neg" : ""}">${xf(c.roi.atAsk.multAtTarget)}</b></td><td class="n hide-s">${m2(c.roi.atAsk.profitAtTarget)}</td></tr>`).join("")}</tbody></table>
+  <p class="note">${(() => { const cs = S.model.cards, n = (k) => cs.filter((c) => c.roi?.targetSrc === k).length; return `12-mo targets: ${n("sell_above")} your sell_above, ${n("research")} research est., ${n("precedent")} precedent est. (mid). `; })()}Estimates, not observed prices. 2× candidates: ${S.model.cards.filter((c) => c.roi?.upside?.cand2x).length}.</p></section>`;
 }
 
 // ---------- Deals
@@ -194,7 +210,7 @@ function vCards() {
   <div class="filters"><input id="q" type="search" placeholder="Search card or number" value="${esc(S.q)}" aria-label="Search cards">
   <div class="seg">${["all", "EN", "JP"].map((l) => `<button data-lang="${l}" class="${S.lang === l ? "on" : ""}">${l}</button>`).join("")}</div>
   <select id="sort" aria-label="Sort">${[["dist", "Closest to zone"], ["value", "Highest value"], ["name", "Name"]].map(([k, l]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div>${sigCompact(c)}${c.roi?.atAsk?.multAtTarget != null ? `<div class="mrow s"><span>net @ target</span><span class="n">${xf(c.roi.atAsk.multAtTarget)}</span></div>` : ""}</article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
+  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div>${sigCompact(c)}${c.roi?.atAsk?.multAtTarget != null ? `<div class="mrow s"><span>net @ target${c.roi.targetSrc === "precedent" ? " (prec.)" : ""}</span><span class="n">${xf(c.roi.atAsk.multAtTarget)}</span></div>` : ""}${c.roi?.upside && !c.roi.upside.none ? `<div class="mrow s"><span>12-mo prec. ${m2(c.roi.upside.low)}–${m2(c.roi.upside.high)}</span><span class="n">${c.roi.upside.cand2x ? "2×✓" : ""}</span></div>` : ""}</article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
 }
 
 // ---------- Card page

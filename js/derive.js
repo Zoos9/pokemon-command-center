@@ -2,7 +2,7 @@
 import { CONFIG } from "./cfg.js";
 import { mapListing, withLowestFallback, pick } from "./fields.js";
 import { median, num } from "./util.js";
-import { roiFor, DEFAULT_FEES } from "./roi.js";
+import { roiFor, upsideFor, DEFAULT_FEES } from "./roi.js";
 
 const short = (name) => { const m = (name || "").match(/^(.*?)\s*\((.*)\)\s*$/); return m ? [m[1], m[2].split(",")[0]] : [name || "?", ""]; };
 
@@ -64,12 +64,14 @@ export function buildModel(t) {
 // ROI after eBay fees (display only). Target: your sell_above first, else the researcher's 12-mo estimate (watchlist.json target_12mo).
 export const FEES = CONFIG.FEES ? { ...DEFAULT_FEES, ...CONFIG.FEES, ship: { ...DEFAULT_FEES.ship, ...(CONFIG.FEES.ship || {}) } } : DEFAULT_FEES;
 function roiOf(c, w) {
-  const d = (w && w.data) || {}, t12 = num(w?.target_12mo ?? d.target_12mo);
-  const target = c.target.sell ?? t12, targetSrc = c.target.sell != null ? "sell_above" : t12 != null ? "research" : null;
-  const ask = okSeller(c.lowest) ? c.lowest.total : null;
-  const r = roiFor({ name: c.full, category: w?.research_category ?? d.research_category ?? c.sug.category, ask, buyBelow: c.target.buy, target, targetSrc,
-    targetConf: w?.target_12mo_confidence ?? d.target_12mo_confidence ?? null, zoneLow: c.sug.low, zoneHigh: c.sug.high, med7: c.med7 }, FEES);
-  r.targetNote = targetSrc === "research" ? (w?.target_12mo_source ?? d.target_12mo_source ?? "research estimate") : null;
+  const d = (w && w.data) || {}, t12 = num(w?.target_12mo ?? d.target_12mo), up = w?.upside_12mo ?? d.upside_12mo ?? null, upMid = num(up?.mid);
+  // Target priority: your sell_above > research target_12mo (opportunities-2026-10-25.md) > precedent est. mid (upside_12mo).
+  const target = c.target.sell ?? t12 ?? upMid, targetSrc = c.target.sell != null ? "sell_above" : t12 != null ? "research" : upMid != null ? "precedent" : null;
+  const ask = okSeller(c.lowest) ? c.lowest.total : null, category = w?.research_category ?? d.research_category ?? c.sug.category;
+  const r = roiFor({ name: c.full, category, ask, buyBelow: c.target.buy, target, targetSrc, targetZoneAnchored: /^predicted bottom zone/.test(up?.anchor_kind || ""),
+    targetConf: targetSrc === "precedent" ? up?.confidence ?? null : w?.target_12mo_confidence ?? d.target_12mo_confidence ?? null, zoneLow: c.sug.low, zoneHigh: c.sug.high, med7: c.med7 }, FEES);
+  r.targetNote = targetSrc === "research" ? (w?.target_12mo_source ?? d.target_12mo_source ?? "research estimate") : targetSrc === "precedent" ? `precedent est. (${up?.method || "upside_12mo"}, n=${up?.n_precedents ?? "?"})` : null;
+  r.upside = upsideFor(up, r.kind, ask, c.target.buy, FEES);
   return r;
 }
 export function netUpside(cards, n = 5) { return cards.filter((c) => c.roi?.atAsk?.multAtTarget != null).sort((a, b) => b.roi.atAsk.multAtTarget - a.roi.atAsk.multAtTarget).slice(0, n); }

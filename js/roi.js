@@ -47,7 +47,7 @@ export function roiFor(i, F = DEFAULT_FEES) {
   let plan = null;
   if (b) {
     const sell = `Sell zone: list at ${usd(b.x2)}+ (2× net on a ${usd(b.buy)} buy at ${bLabel}; net profit ≈ ${usd(b.cost)} per unit).`;
-    const tgt = t != null ? ` 12-mo target ${usd(t)}${i.targetSrc === "sell_above" ? " (your sell_above)" : " (research estimate)"} → ${b.multAtTarget?.toFixed(2)}× net${b.multAtTarget < 2 ? ", short of 2×" : ""}.` : " No 12-mo target yet, so no upside estimate.";
+    const tgt = t != null ? ` 12-mo target ${usd(t)}${i.targetSrc === "sell_above" ? " (your sell_above)" : i.targetSrc === "precedent" ? " (precedent est., mid)" : " (research estimate)"} → ${b.multAtTarget?.toFixed(2)}× net${b.multAtTarget < 2 ? ", short of 2×" : ""}.` : " No 12-mo target yet, so no upside estimate.";
     const stop = i.zoneLow != null ? ` Re-evaluate / stop-loss if the 7d sold median breaks below the predicted bottom low ${usd(i.zoneLow)}${i.zoneHigh != null ? ` (zone ${usd(i.zoneLow)}–${usd(i.zoneHigh)})` : ""}.`
       : ` No predicted bottom zone yet: re-evaluate if the 7d sold median falls ${F.stopFallbackPct}%+ below your buy (${usd(b.buy * (1 - F.stopFallbackPct / 100))}).`;
     plan = sell + tgt + stop;
@@ -56,5 +56,17 @@ export function roiFor(i, F = DEFAULT_FEES) {
   const verdict = headline == null ? null : headline < 1 ? "loss" : headline < F.thinMarginX ? "thin" : headline >= 1.5 ? "good" : "ok";
   return { kind, ship: shipFor(kind, i.ask ?? i.buyBelow, F), target: t, targetSrc: t != null ? i.targetSrc : null, targetConf: i.targetConf || null, atAsk, atBuy, flip, plan,
     headline, headlineBasis: atAsk?.multAtTarget != null ? "target" : flip ? "flip" : null, verdict,
-    actionable: i.ask != null && i.buyBelow != null && i.ask <= i.buyBelow && atAsk?.multAtTarget != null && atAsk.multAtTarget >= 1.5 };
+    actionable: (i.targetSrc !== "precedent" || i.targetZoneAnchored === true) && i.ask != null && i.buyBelow != null && i.ask <= i.buyBelow && atAsk?.multAtTarget != null && atAsk.multAtTarget >= 1.5 };
+}
+// 12-mo precedent upside (watchlist.json upside_12mo, research/upside_12mo.py): net multiple at its low / mid / high sale prices,
+// at today's ask and at buy-below. "2x candidate" = zone-anchored estimate (not a presale/launch price), n >= 5 analogs,
+// and net multiple at the MID estimate >= 2 at buy-below or at today's ask.
+export function upsideFor(up, kind, ask, buyBelow, F = DEFAULT_FEES) {
+  if (!up || up.mid == null) return up ? { none: true, reason: up.reason || "no estimate", n: up.n_precedents ?? null } : null;
+  const at = (buy) => (buy == null ? null : { buy: r2(buy), low: r3(netProceeds(up.low, kind, F) / costBasis(buy, F)), mid: r3(netProceeds(up.mid, kind, F) / costBasis(buy, F)), high: r3(netProceeds(up.high, kind, F) / costBasis(buy, F)) });
+  const zone = /^predicted bottom zone/.test(up.anchor_kind || ""), atAsk = at(ask ?? null), atBuy = at(buyBelow ?? null);
+  const okN = (up.n_precedents ?? 0) >= 5, c2B = zone && okN && atBuy?.mid >= 2, c2A = zone && okN && atAsk?.mid >= 2;
+  return { low: up.low, mid: up.mid, high: up.high, conf: up.confidence || null, n: up.n_precedents ?? null, anchor: up.anchor ?? null, anchorKind: up.anchor_kind || null,
+    zone, pool: up.pool || null, method: up.method || null, asOf: up.as_of || null, multLow: up.mult_low ?? null, multMid: up.mult_mid ?? null, multHigh: up.mult_high ?? null,
+    atAsk, atBuy, cand2x: c2B || c2A, cand2xBasis: c2B && c2A ? "buy-below & ask" : c2B ? "buy-below" : c2A ? "today's ask" : null };
 }
