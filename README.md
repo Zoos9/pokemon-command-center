@@ -89,3 +89,10 @@ Display only. It never changes alerts, `buy_below` (still 70% of reference, BUY_
   - "⚠ thin margin" below 1.25× (`thinMarginX`)
   - "✓ 1.5×+" at 1.5× or more
 - **Home page**: "Best net upside" lists the top 5 by net multiple at target from today's ask. **BUY** means ask ≤ buy_below and ≥1.5× at target.
+
+## Backtested exit plan (added 2026-10-29)
+Display only. `roi.js exitFor()` reads watchlist `exit_plan` / `sell_signal` (research/exit_plan.py, nightly; Supabase: `data` jsonb) and
+recomputes net and net multiples at today's ask and buy-below with the same fee model. Card page: "🎯 Exit plan · backtested est." panel
+(target sell, net after fees, net multiple at ask / buy-below, sell window, time stop, rule, SELL/HOLD/n/a badge). Deal cards and the
+cards grid show a one-line exit estimate with the badge. The older 2×-net "Exit plan" text is now labelled "Fee-math check". It never
+sets sell_above and never alerts. Tests: `node web-dev-tools/exit_test.mjs`, `web-dev-tools/exit_ui_test.py`. Method: research/README.md.

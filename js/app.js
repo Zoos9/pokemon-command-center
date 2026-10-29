@@ -75,7 +75,7 @@ function roiDealLine(c) {
   const srcL = r.targetSrc === "precedent" ? "precedent est." : r.targetSrc === "research" ? "research est." : r.targetSrc === "sell_above" ? "your sell_above" : "";
   const txt = b ? `sell at 12-mo target ${m2(r.target)}${srcL ? ` <span class="sugg">${srcL}</span>` : ""} → net <b>${m2(b.netAtTarget)}</b> on ${m2(b.cost)} cost = <b>${xf(b.multAtTarget)}</b> (${b.profitAtTarget >= 0 ? "+" : ""}${m2(b.profitAtTarget)})`
     : `no 12-mo target · resell now at 7d median ${m2(r.flip.sale)} → net <b>${m2(r.flip.net)}</b> on ${m2(r.atAsk?.cost)} cost = <b>${xf(r.flip.mult)}</b>`;
-  return `<div class="roid"><span class="roiv ${cls}">${lbl}</span>${cand2x(c)} <small>${txt}</small></div>${upsideLine(c)}`;
+  return `<div class="roid"><span class="roiv ${cls}">${lbl}</span>${cand2x(c)} <small>${txt}</small></div>${upsideLine(c)}${exitLine(c)}`;
 }
 // 12-mo precedent upside (watchlist upside_12mo, research/upside_12mo.py). Display only.
 const cand2x = (c) => (c.roi?.upside?.cand2x ? ` <span class="roiv roig" title="precedent mid estimate nets ≥2× after fees (${esc(c.roi.upside.cand2xBasis || "")})">2× candidate</span>` : "");
@@ -92,6 +92,30 @@ function upsidePanel(c) {
   <table class="tbl roitbl"><thead><tr><th>net multiple after fees</th><th class="n">low</th><th class="n">mid</th><th class="n">high</th></tr></thead><tbody>${row("at lowest ask", u.atAsk)}${row("at buy-below", u.atBuy)}</tbody></table>
   <p class="note">Precedent est. = anchor ${m2(u.anchor)} (${esc(u.anchorKind || "")}) × what past analogs did 12 months after their post-release bottom (multiples ${xf(u.multLow)} p10 / ${xf(u.multMid)} median / ${xf(u.multHigh)} p90; ${esc(u.pool || "")}). Backtest and era caveats: research/upside-backtest-2026-10-28.md. Most analog bottoms were in 2023-24, before the 2025 boom; not a promise.</p></div>`;
 }
+// Backtested exit plan (watchlist exit_plan / sell_signal, research/exit_plan.py). Display only: no alerts, sell_above untouched.
+const sigBadge = (e) => !e ? "" : e.signal === "SELL" ? `<span class="roiv roig" title="${esc(e.signalReason || "")}">SELL</span>` : e.signal === "HOLD" ? `<span class="roiv roio" title="${esc(e.signalReason || "")}">HOLD</span>` : `<span class="roiv exna" title="${esc(e.signalReason || "")}">n/a</span>`;
+const mY = (d) => (d ? new Date(d + "T12:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "?");
+function exitLine(c) {
+  const e = c.roi?.exit; if (!e || e.none) return "";
+  return `<div class="roid exl"><small>🎯 exit <span class="sugg">backtested est.</span> ${m2(e.target)} → net <b>${m2(e.net)}</b>${e.multAsk != null ? ` = <b>${xf(e.multAsk)}</b> at ask` : e.multBuy != null ? ` = <b>${xf(e.multBuy)}</b> at buy-below` : ""} · sell ${mY(e.winStart)}–${mY(e.winEnd)}</small> ${sigBadge(e)}</div>`;
+}
+function exitPanel(c) {
+  const e = c.roi?.exit; if (!e) return "";
+  if (e.none) return `<div class="roiup exitp"><b>🎯 Exit plan (backtested est.):</b> none yet (${esc(e.reason)}). ${sigBadge(e)}</div>`;
+  const tr = e.trailing ? `<li>Trailing stop: ${esc(e.trailing.text)}.</li>` : "";
+  const h = e.holding ? `<li>Paper holding: ${e.holding.units} unit(s) in ${esc((e.holding.portfolios || []).join(", "))} at ${m2(e.holding.unit_cost_incl_tax)} each (incl. tax), first buy ${esc(e.holding.first_buy || "?")}.</li>` : "";
+  return `<div class="roiup exitp"><p class="roit2">🎯 Exit plan <span class="sugg">backtested est.</span> ${sigBadge(e)} <small>${esc(e.signalReason || "")}${e.applies ? "" : " · informational (not owned)"}</small></p>
+  <table class="tbl roitbl"><tbody>
+  <tr><td>Target sell (gross list price)${e.ruleType === "target" || e.ruleType === "tgt+trail" ? "" : "<br><small>list in the sell window</small>"}</td><td class="n"><b>${m2(e.target)}</b> <small>${e.lo != null ? `analog range ${m2(e.lo)}–${m2(e.hi)}` : ""}</small></td></tr>
+  <tr><td>Net after eBay fees + ship</td><td class="n"><b>${m2(e.net)}</b></td></tr>
+  <tr><td>Net multiple at lowest ask${e.ask != null ? " " + m2(e.ask) : ""}</td><td class="n"><b class="${e.multAsk >= 2 ? "pos" : e.multAsk < 1 ? "neg" : ""}">${xf(e.multAsk)}</b></td></tr>
+  <tr><td>Net multiple at buy-below${e.buyBelow != null ? " " + m2(e.buyBelow) : ""}</td><td class="n"><b class="${e.multBuy >= 2 ? "pos" : e.multBuy < 1 ? "neg" : ""}">${xf(e.multBuy)}</b></td></tr>
+  <tr><td>Sell window</td><td class="n">${esc(e.winStart || "?")} → ${esc(e.winEnd || "?")}</td></tr>
+  <tr><td>Time stop</td><td class="n">${esc(e.stopDate || "?")}${e.stopMonths ? ` (${e.stopMonths} mo after buying)` : ""}</td></tr></tbody></table>
+  <ul class="exitr"><li>Rule (${esc(e.pool || "")}): ${esc(e.rule || e.ruleId || "")}.</li>${tr}${h}
+  <li>Backtest: ${xf(e.bt.geo)} geo-mean / ${xf(e.bt.med)} median net, ${e.bt.months ?? "?"} months median hold, vs plain 12-mo hold ${xf(e.bt.h12geo)} / ${xf(e.bt.h12med)} · ${esc(e.conf || "low")} conf. · n=${e.n ?? "?"}.</li></ul>
+  <p class="note">Backtested est. (${esc(e.method || "exit-v1")}, ${esc(e.asOf || "")}): anchor ${m2(e.anchor)} (${esc(e.anchorKind || "")}) × what past analogs did after their bottom, scored after fees. ${esc(e.targetKind || "")}. Entries at the real bottom month (ex post) and a 2024-25 boom era flatter these numbers; see research/exit-backtest-2026-10-29.md. Not an alert, never changes your targets.</p></div>`;
+}
 function roiPanel(c) {
   const r = c.roi; if (!r) return "";
   const A = r.atAsk, B = r.atBuy; if (!A && !B) return `<section class="panel roi"><h2>💰 ROI after eBay fees</h2><p class="empty">No reputable ask and no buy-below, nothing to compute.</p></section>`;
@@ -102,10 +126,10 @@ function roiPanel(c) {
     : `<b>No 12-mo target yet</b> (no sell_above, research or precedent estimate), so no upside number. ${r.flip ? `Resell now at 7d median ${m2(r.flip.sale)} would net ${m2(r.flip.net)} = ${xf(r.flip.mult)}.` : ""}`;
   const f = FEES, shipTxt = r.kind === "single" ? `single: ${m2(f.ship.pwe)} envelope under ${m2(f.ship.pweMaxSale)}, ${m2(f.ship.bmwt)} tracked mailer above` : r.kind === "etb" ? `ETB/bundle ${m2(f.ship.etb)}` : `box/UPC ${m2(f.ship.box)}`;
   return `<section class="panel roi"><h2>💰 ROI after eBay fees ${r.actionable ? `<span class="roiv roig">BUY: ask ≤ buy-below & ≥1.5× at target</span>` : ""}</h2>
-  <p class="roit2">${tline}</p>${upsidePanel(c)}
+  <p class="roit2">${tline}</p>${upsidePanel(c)}${exitPanel(c)}
   <table class="tbl roitbl"><thead><tr><th></th><th class="n">at lowest ask${A ? ` ${m2(A.buy)}` : ""}</th><th class="n">at buy-below${B ? ` ${m2(B.buy)}` : ""}</th></tr></thead><tbody>
   ${[...rows, ...tr].map(([l, k, fm]) => `<tr><td>${l}</td>${col(A, k, fm)}${col(B, k, fm)}</tr>`).join("")}</tbody></table>
-  ${r.plan ? `<p class="roiplan">🧭 <b>Exit plan.</b> ${esc(r.plan)}</p>` : ""}
+  ${r.plan ? `<p class="roiplan">🧭 <b>Fee-math check.</b> ${esc(r.plan)}</p>` : ""}
   <p class="note">Net = sale × (1 − ${(f.ebayFeePct * 100).toFixed(2)}%) − ${m2(f.perOrderFee)} − outbound shipping (${shipTxt}). Cost = item + shipping × ${(1 + f.taxRate).toFixed(3)}. Prices are item+ship from seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb listings.${r.targetNote ? ` Target source: ${esc(r.targetNote)}.` : ""}</p></section>`;
 }
 function netUpsideBox() {
@@ -210,7 +234,7 @@ function vCards() {
   <div class="filters"><input id="q" type="search" placeholder="Search card or number" value="${esc(S.q)}" aria-label="Search cards">
   <div class="seg">${["all", "EN", "JP"].map((l) => `<button data-lang="${l}" class="${S.lang === l ? "on" : ""}">${l}</button>`).join("")}</div>
   <select id="sort" aria-label="Sort">${[["dist", "Closest to zone"], ["value", "Highest value"], ["name", "Name"]].map(([k, l]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div>${sigCompact(c)}${c.roi?.atAsk?.multAtTarget != null ? `<div class="mrow s"><span>net @ target${c.roi.targetSrc === "precedent" ? " (prec.)" : ""}</span><span class="n">${xf(c.roi.atAsk.multAtTarget)}</span></div>` : ""}${c.roi?.upside && !c.roi.upside.none ? `<div class="mrow s"><span>12-mo prec. ${m2(c.roi.upside.low)}–${m2(c.roi.upside.high)}</span><span class="n">${c.roi.upside.cand2x ? "2×✓" : ""}</span></div>` : ""}</article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
+  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div>${sigCompact(c)}${c.roi?.atAsk?.multAtTarget != null ? `<div class="mrow s"><span>net @ target${c.roi.targetSrc === "precedent" ? " (prec.)" : ""}</span><span class="n">${xf(c.roi.atAsk.multAtTarget)}</span></div>` : ""}${c.roi?.upside && !c.roi.upside.none ? `<div class="mrow s"><span>12-mo prec. ${m2(c.roi.upside.low)}–${m2(c.roi.upside.high)}</span><span class="n">${c.roi.upside.cand2x ? "2×✓" : ""}</span></div>` : ""}${c.roi?.exit && !c.roi.exit.none ? `<div class="mrow s"><span>exit est. ${m2(c.roi.exit.target)} · net ${m2(c.roi.exit.net)}</span><span class="n">${sigBadge(c.roi.exit)}</span></div>` : ""}</article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
 }
 
 // ---------- Card page

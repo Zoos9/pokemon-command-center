@@ -70,3 +70,18 @@ export function upsideFor(up, kind, ask, buyBelow, F = DEFAULT_FEES) {
     zone, pool: up.pool || null, method: up.method || null, asOf: up.as_of || null, multLow: up.mult_low ?? null, multMid: up.mult_mid ?? null, multHigh: up.mult_high ?? null,
     atAsk, atBuy, cand2x: c2B || c2A, cand2xBasis: c2B && c2A ? "buy-below & ask" : c2B ? "buy-below" : c2A ? "today's ask" : null };
 }
+// Backtested exit plan (watchlist.json exit_plan + sell_signal, research/exit_plan.py). Display only: never an alert, never sell_above.
+// Net multiples are recomputed here at today's ask / buy-below with the same fee model (the stored ones are a nightly snapshot).
+export function exitFor(ep, ss, kind, ask, buyBelow, F = DEFAULT_FEES) {
+  if (!ep) return null;
+  if (ep.target_sell == null) return { none: true, reason: ep.reason || "no exit plan", signal: ss?.signal || "n/a" };
+  const net = netProceeds(ep.target_sell, kind, F), mx = (buy) => (buy == null ? null : r3(net / costBasis(buy, F)));
+  return { target: ep.target_sell, targetKind: ep.target_kind || null, net: r2(net), lo: ep.exit_range_low ?? null, hi: ep.exit_range_high ?? null,
+    multAsk: mx(ask ?? null), multBuy: mx(buyBelow ?? null), ask: ask ?? null, buyBelow: buyBelow ?? null,
+    ruleId: ep.rule_id || null, rule: ep.rule || null, ruleType: ep.rule_type || null, anchor: ep.anchor ?? null, anchorKind: ep.anchor_kind || null,
+    winStart: ep.sell_window_start || null, winEnd: ep.sell_window_end || null, stopDate: ep.time_stop_date || null, stopMonths: ep.time_stop_months ?? null,
+    trailing: ep.trailing_stop || null, conf: ep.confidence || null, n: ep.n_precedents ?? null, pool: ep.pool || null,
+    bt: { geo: ep.bt_net_geo ?? null, med: ep.bt_net_median ?? null, months: ep.bt_months_median ?? null, h12geo: ep.bt_hold12_net_geo ?? null, h12med: ep.bt_hold12_net_median ?? null, oos: ep.oos_net_geo ?? null },
+    asOf: ep.as_of || null, method: ep.method || null, holding: ep.holding || null,
+    signal: ss?.signal || "n/a", signalReason: ss?.reason || null, applies: !!ss?.applies };
+}

@@ -2,7 +2,7 @@
 import { CONFIG } from "./cfg.js";
 import { mapListing, withLowestFallback, pick } from "./fields.js";
 import { median, num } from "./util.js";
-import { roiFor, upsideFor, DEFAULT_FEES } from "./roi.js";
+import { roiFor, upsideFor, exitFor, DEFAULT_FEES } from "./roi.js";
 
 const short = (name) => { const m = (name || "").match(/^(.*?)\s*\((.*)\)\s*$/); return m ? [m[1], m[2].split(",")[0]] : [name || "?", ""]; };
 
@@ -72,6 +72,7 @@ function roiOf(c, w) {
     targetConf: targetSrc === "precedent" ? up?.confidence ?? null : w?.target_12mo_confidence ?? d.target_12mo_confidence ?? null, zoneLow: c.sug.low, zoneHigh: c.sug.high, med7: c.med7 }, FEES);
   r.targetNote = targetSrc === "research" ? (w?.target_12mo_source ?? d.target_12mo_source ?? "research estimate") : targetSrc === "precedent" ? `precedent est. (${up?.method || "upside_12mo"}, n=${up?.n_precedents ?? "?"})` : null;
   r.upside = upsideFor(up, r.kind, ask, c.target.buy, FEES);
+  r.exit = exitFor(w?.exit_plan ?? d.exit_plan ?? null, w?.sell_signal ?? d.sell_signal ?? null, r.kind, ask, c.target.buy, FEES);   // backtested exit plan, display only
   return r;
 }
 export function netUpside(cards, n = 5) { return cards.filter((c) => c.roi?.atAsk?.multAtTarget != null).sort((a, b) => b.roi.atAsk.multAtTarget - a.roi.atAsk.multAtTarget).slice(0, n); }

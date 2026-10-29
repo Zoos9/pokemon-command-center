@@ -172,3 +172,4 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .roitbl td,.roitbl th{padding:5px 6px}.roitbl tbody tr{cursor:default}.roitbl .pos{color:var(--grn)}.roitbl .neg{color:var(--red)}
 @media (max-width:600px){.roitbl{font-size:13px}.roitbl th{font-size:11px}}
 .roiup{margin:6px 0 10px;padding:8px 10px;border:1px dashed var(--line,#333);border-radius:8px}.roiup .roit2{margin:0 0 6px}
+.exna{border:1.5px solid #6b6890;color:#b9b6d6}.exitp .exitr{margin:6px 0 4px 18px;padding:0;font-size:12.5px}.exitp .exitr li{margin:2px 0}.exl .roiv{margin-left:4px}
