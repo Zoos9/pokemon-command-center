@@ -85,3 +85,19 @@ export function exitFor(ep, ss, kind, ask, buyBelow, F = DEFAULT_FEES) {
     asOf: ep.as_of || null, method: ep.method || null, holding: ep.holding || null,
     signal: ss?.signal || "n/a", signalReason: ss?.reason || null, applies: !!ss?.applies };
 }
+// Retail MSRP buy board (watchlist.json retail_msrp, research/msrp_board.py). Display only. Recomputes cost / flip / hold multiples from the
+// stored MSRP and sale prices with the same fee model (cost = MSRP × 1.065, retail pickup / free shipping assumed).
+export function retailFor(rm, kind, F = DEFAULT_FEES) {
+  if (!rm) return null;
+  const k = rm.ship_kind || kind, base = { verdict: rm.verdict || "MSRP unknown", code: rm.verdict_code || "unknown", reason: rm.reason || null, presale: !!rm.presale, presaleNote: rm.presale_note || null,
+    msrp: rm.msrp ?? null, source: rm.msrp_source || null, sources: rm.sources || [], note: rm.msrp_note || null, where: rm.where || null, pcVsBigbox: rm.pc_vs_bigbox || null, asOf: rm.as_of || null, kind: k };
+  if (rm.msrp == null) return { ...base, none: true };
+  const cost = costBasis(rm.msrp, F), fn = rm.sale_now != null ? netProceeds(rm.sale_now, k, F) : null, hs = rm.hold_sale_12mo || null;
+  const hx = (v) => (v == null ? null : r3(netProceeds(v, k, F) / cost));
+  return { ...base, cost: r2(cost), breakeven: r2(saleFor(1, cost, k, F)), sale: rm.sale_now ?? null, saleBasis: rm.sale_now_basis || null, flipNet: r2(fn),
+    flipProfit: fn != null ? r2(fn - cost) : null, flipX: fn != null ? r3(fn / cost) : null,
+    hold: hs && hs.mid != null ? { low: hx(hs.low), mid: hx(hs.mid), high: hx(hs.high), saleLow: hs.low, saleMid: hs.mid, saleHigh: hs.high, profitMid: r2(netProceeds(hs.mid, k, F) - cost), conf: rm.hold_confidence || null, n: rm.hold_n ?? null } : null,
+    holdReason: rm.hold_reason || null, exitTarget: rm.exit_target_sell ?? null, exitX: rm.exit_target_sell != null ? hx(rm.exit_target_sell) : null, exitWindow: rm.exit_window || null,
+    alts: (rm.retail_prices || []).map((a) => ({ ...a, cost: r2(costBasis(a.price, F)), flipX: fn != null ? r3(fn / costBasis(a.price, F)) : null, flipProfit: fn != null ? r2(fn - costBasis(a.price, F)) : null })),
+    score: rm.score ?? null };
+}

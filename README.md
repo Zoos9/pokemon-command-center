@@ -20,7 +20,7 @@ js/adapters/supabase.js  wraps window.PokeData (auth, polling via PokeData.subsc
 js/adapters/local.js     dev only: reads ../web-data/*.json, polls
 js/derive.js             joins tables into the card model; deal / target / suggested-zone logic
 js/charts.js             inline SVG: sparklines, price chart, radar
-js/roi.js                ROI after eBay fees + exit plan (pure; constants in config.js `fees`)
+js/roi.js                ROI after eBay fees + exit plan + retail MSRP board (pure; constants in config.js `fees`)
 js/app.js                router + views
 ```
 Dev-only tools live outside the deployed folder, in `/home/box/pokemon-team/web-dev-tools/`:
@@ -82,6 +82,7 @@ Display only. It never changes alerts, `buy_below` (still 70% of reference, BUY_
   - Kind comes from `research_category` and the name. Anything `Sealed*` is sealed; "Booster Box", "Ultra-Premium Collection" and `Sealed:Premium` count as box. Everything else is a single.
 - **12-mo target**: `sell_above` if set. Otherwise it's `target_12mo` in watchlist.json, a research estimate copied from `research/opportunities-2026-10-25.md` and labelled "research est.". Otherwise (since 2026-10-28) it's the mid of `upside_12mo`, labelled "precedent est." (research/upside_12mo.py; see research/README.md). Items with none of these show "No 12-mo target yet" and are never given an invented number. For those, the Deal cards show the net if the item were resold now at the 7d sold median.
 - **12-mo precedent upside** (`upside_12mo`, `roi.js upsideFor`): card page shows the low–high range, mid, confidence, n analogs and the net multiple after fees at low/mid/high, at the lowest ask and at buy-below. Deal cards and the Cards grid show the range. **2× candidate** badge = zone-anchored estimate, n ≥ 5, mid nets ≥ 2× at buy-below or at today's ask. A precedent target anchored on a presale/launch price never makes the BUY badge. Test: `web-dev-tools/upside_ui_test.py` (headless, local data).
+- **Retail MSRP board** (`retail_msrp`, `roi.js retailFor`, research/msrp_board.py): sealed card pages show a 🏬 Retail MSRP panel (MSRP + source, cost incl. 6.5% tax, flip-now net multiple/profit at the 7d sold median, 12-mo hold net multiples at the precedent low/mid/high, exit-plan multiple, verdict, presale flag, observed store prices). Deals home shows "🏬 Best retail buys" (top 5 flip/hold verdicts by score). Display only. Tests: `node web-dev-tools/msrp_test.mjs`, `web-dev-tools/msrp_ui_test.py`.
 - **Card page**: shows cost basis, break-even, 1.5×/2×/3× sale prices, and net, multiple and profit at target. Each is shown at the lowest reputable ask (seller 30+ fb) and at buy_below.
 - **Exit plan**: the sell zone is the 2× net price. Stop-loss or re-evaluate if the 7d sold median breaks below the predicted bottom `zone_low`. If there's no zone, the trigger is 20% under the buy price.
 - **Deal cards**: badge thresholds are:

@@ -1,6 +1,6 @@
 import { CONFIG } from "./cfg.js";
 import * as D from "./data.js";
-import { buildModel, deals, warnFlags, netUpside, FEES } from "./derive.js";
+import { buildModel, deals, warnFlags, netUpside, retailBuys, FEES } from "./derive.js";
 import { spark, priceChart, radar, phaseColor } from "./charts.js";
 import { esc, money, pct, tCT, dCT, ago } from "./util.js";
 import { priceBtn } from "./price.js";
@@ -132,6 +132,33 @@ function roiPanel(c) {
   ${r.plan ? `<p class="roiplan">🧭 <b>Fee-math check.</b> ${esc(r.plan)}</p>` : ""}
   <p class="note">Net = sale × (1 − ${(f.ebayFeePct * 100).toFixed(2)}%) − ${m2(f.perOrderFee)} − outbound shipping (${shipTxt}). Cost = item + shipping × ${(1 + f.taxRate).toFixed(3)}. Prices are item+ship from seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb listings.${r.targetNote ? ` Target source: ${esc(r.targetNote)}.` : ""}</p></section>`;
 }
+// Retail MSRP buy board (watchlist retail_msrp, research/msrp_board.py). Display only: no alerts, targets or paper trades change.
+const RV = { flip: ["roig", "🏬 Buy at MSRP: flip"], hold: ["roio", "🏬 Buy at MSRP: hold"], skip: ["roil", "Skip at MSRP"], unknown: ["exna", "MSRP unknown"] };
+const rvBadge = (r) => { const [cl, t] = RV[r.code] || RV.unknown; return `<span class="roiv ${cl}">${t}</span>${r.presale ? ` <span class="roiv roit" title="${esc(r.presaleNote || "")}">presale data</span>` : ""}`; };
+const rvShort = (r) => { const [cl] = RV[r.code] || RV.unknown; return `<span class="roiv ${cl}" title="${esc(r.verdict)}">${r.code === "flip" ? "flip" : r.code === "hold" ? "hold" : r.code}</span>${r.presale ? ` <span class="roiv roit" title="${esc(r.presaleNote || "")}">presale</span>` : ""}`; };
+const xc = (v, g = 1.5) => `<b class="${v >= g ? "pos" : v < 1 ? "neg" : ""}">${xf(v)}</b>`;
+const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return "source"; } };
+function retailPanel(c) {
+  const r = c.roi?.retail; if (!r) return "";
+  const src = r.sources.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(host(u))}</a>`).join(", ");
+  if (r.none) return `<section class="panel roi retail"><h2>🏬 Retail MSRP ${rvBadge(r)}</h2><p class="empty">${esc(r.reason || "No verified US MSRP yet.")}</p></section>`;
+  const h = r.hold, alts = r.alts.length ? `<ul class="exitr">${r.alts.map((a) => `<li>${esc(a.where)}: ${m2(a.price)}${a.confirmed ? "" : " <span class=\"sugg\">unconfirmed</span>"} → cost ${m2(a.cost)}, flip ${xf(a.flipX)} (${a.flipProfit >= 0 ? "+" : ""}${m2(a.flipProfit)})${a.note ? ` <small>${esc(a.note)}</small>` : ""}</li>`).join("")}</ul>` : "";
+  return `<section class="panel roi retail"><h2>🏬 Retail MSRP <small>buy at Walmart / Target / Pokémon Center / Best Buy list price</small> ${rvBadge(r)}</h2>
+  <p class="roit2">MSRP <b>${m2(r.msrp)}</b> → cost <b>${m2(r.cost)}</b> incl. 6.5% tax · break-even eBay sale ${m2(r.breakeven)}</p>
+  <table class="tbl roitbl"><tbody>
+  <tr><td>Flip now: sell at ${esc(r.saleBasis || "—")} ${m2(r.sale)}</td><td class="n">net ${m2(r.flipNet)} = ${xc(r.flipX, 1.25)} <small>(${r.flipProfit >= 0 ? "+" : ""}${m2(r.flipProfit)})</small></td></tr>
+  <tr><td>Hold 12 mo <span class="sugg">precedent est.</span>${h ? ` ${m2(h.saleLow)} / ${m2(h.saleMid)} / ${m2(h.saleHigh)}` : ""}</td><td class="n">${h ? `${xf(h.low)} / ${xc(h.mid)} / ${xf(h.high)} <small>(${esc(h.conf || "?")} conf.)</small>` : esc(r.holdReason || "no estimate")}</td></tr>
+  ${r.exitTarget != null ? `<tr><td>Exit plan target <span class="sugg">backtested est.</span> ${m2(r.exitTarget)}</td><td class="n">${xf(r.exitX)}</td></tr>` : ""}</tbody></table>
+  <p class="roiplan">${esc(r.reason || "")}</p>${alts}
+  <p class="note">${r.where ? `Where: ${esc(r.where)}. ` : ""}${r.pcVsBigbox ? `PC vs big-box: ${esc(r.pcVsBigbox)}. ` : ""}${r.note ? esc(r.note) + " " : ""}Source: ${src}. Assumes store pickup / free shipping at MSRP. Net = sale × 0.8675 − $0.40 − ${m2(r.kind === "box" ? FEES.ship.box : FEES.ship.etb)} ship. Display only: buy_below, alerts and paper trades are unchanged. As of ${esc(r.asOf || "?")}.</p></section>`;
+}
+function retailBuysBox() {
+  const all = S.model.cards.filter((c) => c.roi?.retail), top = retailBuys(S.model.cards, 5); if (!all.length) return "";
+  const skip = all.filter((c) => c.roi.retail.code === "skip").length;
+  return `<section class="panel retailbox"><h2>🏬 Best retail buys <small>if a restock lets you pay MSRP · after tax + eBay fees</small></h2>${top.length ? `<table class="tbl roitbl"><thead><tr><th>Item</th><th class="n">MSRP</th><th class="n">Flip now</th><th class="n hide-s">Hold 12-mo mid</th><th>Buy to</th></tr></thead><tbody>
+  ${top.map((c) => { const r = c.roi.retail; return `<tr onclick="location.hash='#/card/${encodeURIComponent(c.id)}'"><td>${cardLink(c, `<b>${esc(c.name)}</b>`)}</td><td class="n">${m2(r.msrp)}</td><td class="n">${xc(r.flipX, 1.25)} <small>${r.flipProfit >= 0 ? "+" : ""}${m2(r.flipProfit)}</small></td><td class="n hide-s">${r.hold ? xf(r.hold.mid) : "—"}</td><td>${rvShort(r)}</td></tr>`; }).join("")}</tbody></table>` : `<p class="empty">No sealed item clears fees at MSRP right now.</p>`}
+  <p class="note">${top.length} buy${top.length === 1 ? "" : "s"} shown, ${skip} sealed item${skip === 1 ? "" : "s"} skip at MSRP (the $13/$22 outbound shipping and 13.25% fees eat thin flips). Hold = precedent est., not a promise. Presale rows use presale sold data.</p></section>`;
+}
 function netUpsideBox() {
   const top = netUpside(S.model.cards, 5); if (!top.length) return "";
   return `<section class="panel"><h2>💰 Best net upside <small>12-mo target vs today's lowest ask, after eBay fees</small></h2><table class="tbl roitbl"><thead><tr><th>Item</th><th class="n">Ask</th><th class="n">Target</th><th class="n">Net ×</th><th class="n hide-s">Profit</th></tr></thead><tbody>
@@ -173,6 +200,7 @@ function vDeals() {
     ${d.suggested.length ? `<section><h2>💡 Under suggested zone <small>researcher's zone, not your target · ${money(CONFIG.MIN_CARD_VALUE)}+ cards · seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</small></h2><div class="deals">${d.suggested.map((c) => dealCard(c, "suggested")).join("")}</div></section>` : ""}
     ${bulk}
     ${netUpsideBox()}
+    ${retailBuysBox()}
     <div class="split"><section><h2>🎯 Closest to buy zone</h2><table class="tbl"><thead><tr><th>Card</th><th>Phase</th><th>7d med</th><th>Buy &lt;</th><th>Distance</th><th class="hide-s">Trend</th><th class="hide-s">Low ask</th><th class="hide-s">Sales 7d</th></tr></thead><tbody>${rows}</tbody></table></section>
     <aside>${alertsBox(d.anyTargets)}<section class="panel"><h2>📡 Team live <a class="more" href="#/team">all →</a></h2>${feedList(6)}</section></aside></div>`;
 }
@@ -253,7 +281,7 @@ function vCard(id) {
   <div class="st"><small>LOWEST REPUTABLE ASK</small><b class="pink">${money(l?.total)}</b>${c.askVsMed != null ? pct(c.askVsMed, 1) + " vs median" : "no listing"}</div>${tgt}
   <div class="st"><small>ACTIVE (REPUTABLE)</small><b>${c.activeCount ?? "—"}</b>${c.ebayTotal != null ? `of ${c.ebayTotal.toLocaleString()} on eBay · ` : ""}scanned ${tCT(c.scanned_at)}</div></div>
   ${l ? `<div class="lowl"><div class="lowp">Lowest reputable ${priceBtn(l, { key: "low-" + c.id, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested buy-below" })}</div>${l.title ? `“${esc(l.title)}” ` : ""}<span class="badges">${legit(l)}${badges(l)}</span>${l.url ? ` <a href="${esc(l.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</div>` : ""}
-  ${bottomSection(c, small())}${roiPanel(c)}<div class="cardgrid"><section class="panel">${priceChart(c, small())}<p class="note">Dots are individual eBay sold comps${c.outliers ? ` (${c.outliers} outlier${c.outliers > 1 ? "s" : ""} dropped from the median)` : ""}. Medians come from ${c.histCount} history snapshot${c.histCount === 1 ? "" : "s"}${c.histDate ? ` (${esc(c.histDate)})` : ""}; the trend line will fill in as daily snapshots accumulate.</p></section>
+  ${bottomSection(c, small())}${roiPanel(c)}${retailPanel(c)}<div class="cardgrid"><section class="panel">${priceChart(c, small())}<p class="note">Dots are individual eBay sold comps${c.outliers ? ` (${c.outliers} outlier${c.outliers > 1 ? "s" : ""} dropped from the median)` : ""}. Medians come from ${c.histCount} history snapshot${c.histCount === 1 ? "" : "s"}${c.histDate ? ` (${esc(c.histDate)})` : ""}; the trend line will fill in as daily snapshots accumulate.</p></section>
   <div><section class="panel call" style="border-color:${phaseColor(c.sug.phase)}">${c.sug.call ? `<h2 style="color:${phaseColor(c.sug.phase)}">Research: ${esc((c.sug.phase || "").toUpperCase())}</h2><p>${esc(c.sug.call)}</p>${c.sug.prediction ? `<p class="pred">${esc(c.sug.prediction)}</p>` : ""}<p>confidence <b>${esc(c.sug.conf || "?")}</b> · call ${esc(c.sug.date || "")} · review by ${esc(c.sug.review_by || "—")}</p>${c.sug.links.length ? `<details><summary>${c.sug.links.length} sources</summary>${c.sug.links.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, "").slice(0, 60))}</a>`).join("")}</details>` : ""}` : `<p class="empty">No research call for this card yet.</p>`}</section>
   ${c.auctions.length ? `<section class="panel"><h2>⏱ Auctions ending soon</h2><table class="tbl lst"><tbody>${c.auctions.map((x) => `<tr><td class="n">${priceBtn(x, { key: "au-" + (x.item_id || x.url), pop: true, compact: true, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested" })}<small>${x.bids ?? 0} bid${x.bids === 1 ? "" : "s"}</small></td><td>${esc(x.seller || "?")}<small>${fb(x)}</small>${x.title ? `<small class="lt">${esc(x.title)}</small>` : ""}</td><td><small>ends</small>${esc(dCT(x.end_date))}</td><td>${x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</td></tr>`).join("")}</tbody></table></section>` : ""}
   <section class="panel"><h2>Live BIN listings <small>reputable sellers</small></h2>${listings ? `<table class="tbl lst"><tbody>${listings}</tbody></table>${c.listings.length > 10 ? "</details>" : ""}` : `<p class="empty">No reputable listings in the last scan.</p>`}</section></div></div>`;
