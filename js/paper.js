@@ -1,5 +1,6 @@
 // Paper Trading tab (2026-10-25). Data: papertrade table rows {id, kind, portfolio, date, data}.
 import { esc, money, pct, dCT } from "./util.js";
+import { liqBadge } from "./liquidity.js";
 const COLORS = ["#ffcb05", "#2ee6a6", "#3b9cff", "#ff3d7f", "#c86bff", "#ff9f1c", "#a9a3c9"];
 const m2 = (x) => (x == null || isNaN(x) ? "—" : `$${(+x).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`);
 const sgn = (x) => (x == null ? "" : x > 0 ? "up" : x < 0 ? "dn" : "");
@@ -35,7 +36,7 @@ const tradeRow = (t) => {
     <td><small>${esc(d.reason)}<br>seller ${esc(d.seller || "?")} (${d.seller_feedback ?? "?"} · ${d.seller_feedback_pct ?? "?"}%)</small></td></tr>`;
 };
 
-export function vPaper(rows) {
+export function vPaper(rows, byId) {
   rows = rows || [];
   const ports = rows.filter((r) => r.kind === "portfolio").map((r) => r.data).sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
   const trades = rows.filter((r) => r.kind === "trade").sort((a, b) => (a.data.ts < b.data.ts ? 1 : -1));
@@ -49,7 +50,7 @@ export function vPaper(rows) {
     const hold = p.holdings || [];
     return `<details class="panel ptport" data-k="pt-${esc(p.id)}" id="pt-${esc(p.id)}" ${location.hash === "#/paper/" + encodeURIComponent(p.id) ? "open" : ""}><summary><i class="ptdot" style="background:${COLORS[i % COLORS.length]}"></i><b>${esc(p.name)}</b> <span class="n">${m2(p.equity)}</span> <span class="n ${sgn(p.roi_pct)}">${pct(p.roi_pct, 2)}</span> <small>${hold.length} holdings · ${tr.length} trades</small></summary>
       <p class="sub">${esc(p.desc || "")}</p>
-      <h3>Holdings</h3>${hold.length ? `<div class="ptscroll"><table class="tbl pttbl"><thead><tr><th>Item</th><th>Units</th><th>Cost (all-in)</th><th>Mark (sold)</th><th>Net if sold</th><th>Unrealized</th><th>Target</th></tr></thead><tbody>${hold.map((h) => `<tr onclick="location.hash='#/card/${encodeURIComponent(h.card_id)}'"><td><b>${esc(h.card)}</b> <small>${esc(h.number || "")}</small></td><td class="n">${h.units}</td><td class="n">${m2(h.cost_usd)}</td><td class="n">${m2(h.mark_usd)}<small class="src">${esc(h.mark_source || "")}</small></td><td class="n">${m2(h.net_value_usd)}</td><td class="n ${sgn(h.unrealized_usd)}">${m2(h.unrealized_usd)} (${pct(h.unrealized_pct, 1)})</td><td class="n">${m2(h.expected_target)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="empty">No open positions${p.strategy === "sealed_seasonal" ? " (buy window opens Nov 1)" : ""}.</p>`}
+      <h3>Holdings</h3>${hold.length ? `<div class="ptscroll"><table class="tbl pttbl"><thead><tr><th>Item</th><th>Units</th><th>Cost (all-in)</th><th>Mark (sold)</th><th>Net if sold</th><th>Unrealized</th><th>Target</th></tr></thead><tbody>${hold.map((h) => `<tr onclick="location.hash='#/card/${encodeURIComponent(h.card_id)}'"><td><b>${esc(h.card)}</b> <small>${esc(h.number || "")}</small> ${liqBadge(byId?.[h.card_id]?.liq)}</td><td class="n">${h.units}</td><td class="n">${m2(h.cost_usd)}</td><td class="n">${m2(h.mark_usd)}<small class="src">${esc(h.mark_source || "")}</small></td><td class="n">${m2(h.net_value_usd)}</td><td class="n ${sgn(h.unrealized_usd)}">${m2(h.unrealized_usd)} (${pct(h.unrealized_pct, 1)})</td><td class="n">${m2(h.expected_target)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="empty">No open positions${p.strategy === "sealed_seasonal" ? " (buy window opens Nov 1)" : ""}.</p>`}
       <h3>Trades</h3>${tr.length ? `<div class="ptscroll"><table class="tbl pttbl pttr"><thead><tr><th>Date</th><th></th><th>Item</th><th>Price breakdown</th><th>Target / P&amp;L</th><th>Reason</th></tr></thead><tbody>${tr.map(tradeRow).join("")}</tbody></table></div>` : `<p class="empty">No trades yet.</p>`}
     </details>`;
   }).join("");

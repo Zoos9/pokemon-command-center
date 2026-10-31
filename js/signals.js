@@ -3,6 +3,7 @@
 import { esc, money, tCT, ago } from "./util.js";
 import { fmtWindow } from "./bottom.js";
 import { stageInfo, STALE_MS, KIND_LABEL, REBOUND_PCT } from "./fields.js";
+import { liqCaution } from "./liquidity.js";
 const c2 = (v) => (v == null || isNaN(+v) ? "—" : "$" + (+v).toFixed(2));
 const p1 = (v, plus) => (v == null || isNaN(+v) ? "—" : (plus && v > 0 ? "+" : "") + (+v).toFixed(1) + "%");
 const basisLbl = (b) => (b === "post_peak" ? "since peak" : b === "window" ? "trend window" : b ? String(b) : null);
@@ -56,7 +57,7 @@ export function sigCompact(c) {
   <div class="sgk"><span>fair <b>${c2(s.fair)}</b></span><span>buy &lt; <b>${c2(s.target)}</b></span></div>
   ${s.insuff ? `<div class="insuf">⏳ No bottom call yet: ${esc(s.insuff)}</div>` : `<div class="sgk"><span title="predicted bottom">bottom <b>${s.zl != null ? `${money(s.zl)}–${money(s.zh)}` : "pending"}</b></span><span>${s.room == null ? "room —" : s.room <= 0 ? "<b class='g'>at/below zone</b>" : `room <b>${s.room.toFixed(0)}%</b>`}</span></div>`}
   <div class="sgk"><span>off peak <b>${p1(s.offPeak)}</b></span></div><div class="sgk"><span>${asksLine(s)}</span></div>
-  <div class="sgw">${esc(s.reason)}</div>${st ? `<div class="fr stale">⚠ listings ${c.scanned_at ? ago(c.scanned_at) : "never scanned"}</div>` : ""}</div>`;
+  <div class="sgw">${esc(s.reason)}</div>${liqCaution(c.liq, s.status)}${st ? `<div class="fr stale">⚠ listings ${c.scanned_at ? ago(c.scanned_at) : "never scanned"}</div>` : ""}</div>`;
 }
 
 // Full panel for the card trajectory view.
@@ -69,7 +70,7 @@ export function sigFull(c, priceHtml) {
   const stageWhy = info ? `${esc(info.say)} Slope ${p1(s.slope, true)}/day${s.slopeBasis ? ` (measured ${s.slopeBasis === "post_peak" ? "since the peak" : `over the ${s.twin || 14}-day window`}; basis: ${esc(basisLbl(s.slopeBasis))})` : ""}. ${s.peak != null ? `${s.peakSrc === "research robust peak" ? "Research robust peak" : "Peak daily median"} ${c2(s.peak)}${s.peakDate ? ` on ${esc(String(s.peakDate).slice(5))}` : ""}; now ${p1(s.offPeak)} vs that peak.` : ""}${s.rebound ? " It is labelled rising because the trend window goes up, but it is still below its peak — read it as a rebound, not a new high." : ""}` : "No trend stage yet: not enough sold days after trimming outliers.";
   const comp = `<div><small>ASK COMPETITION</small><b>${n0(s.competitiveN)}<span class="of"> of ${n0(s.asksTotalN)}</span></b><span>${asksLine(s)} · ${n0(s.undercutN)} undercutting solds${s.undercutShare != null ? ` (${(s.undercutShare * 100).toFixed(1)}%)` : ""}</span>${why("Competitive asks are listings priced near the sold market; if many sellers undercut recent sales, prices tend to follow them down. '—' means Alert Desk hasn't published this count yet.")}</div>`;
   return `<section class="panel sigf"><h2>Decision ${statusPill(s)}</h2>
-  ${priceHtml ? `<div class="sgprice"><small>LOWEST ALL-IN</small>${priceHtml}</div>` : ""}<div class="sgrow">${stagePill(s)}<span class="sgwhy">${esc(s.reason)}</span></div>
+  ${priceHtml ? `<div class="sgprice"><small>LOWEST ALL-IN</small>${priceHtml}</div>` : ""}<div class="sgrow">${stagePill(s)}<span class="sgwhy">${esc(s.reason)}</span></div>${liqCaution(c.liq, s.status)}
   ${why(s.status === "DEAL" ? "DEAL: the cheapest reputable listing (item + shipping) is under the buy-below target AND low enough for the trend stage. This is the dashboard's rule read-out; pushed alerts are on the Deals tab." : s.status === "WATCH" ? `WATCH: not a deal yet. ${s.price != null && s.target != null && s.price > s.target ? `The cheapest listing ${c2(s.price)} is above the buy-below target ${c2(s.target)}.` : `The cheapest listing ${c2(s.price)} is under the target, but the card is still ${esc(s.stage || "trending")}, so it also has to reach the deal ceiling ${c2(s.ceil)}.`} Rule: under target AND ≤ bottom low if falling fast, ≤ bottom mid if falling, otherwise ≤ bottom high.` : "No status: there's no live listing or no target for this card.")}
   ${s.status === "WATCH" ? `<div class="sgceil">deal ceiling <b>${c2(s.ceil)}</b>${s.basis ? ` <small>(${esc(s.basis)} because ${esc(s.stage || "trend pending")})</small>` : ""} · compared with item + ship ${c2(s.price)}, tax shown separately</div>` : s.price != null ? `<div class="sgceil">lowest item + ship ${c2(s.price)} <small>(tax separate)</small></div>` : ""}
   <div class="sggrid">

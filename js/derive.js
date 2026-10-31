@@ -3,6 +3,7 @@ import { CONFIG } from "./cfg.js";
 import { mapListing, withLowestFallback, pick } from "./fields.js";
 import { median, num } from "./util.js";
 import { roiFor, upsideFor, exitFor, retailFor, DEFAULT_FEES } from "./roi.js";
+import { liqFor } from "./liquidity.js";
 
 const short = (name) => { const m = (name || "").match(/^(.*?)\s*\((.*)\)\s*$/); return m ? [m[1], m[2].split(",")[0]] : [name || "?", ""]; };
 
@@ -49,7 +50,8 @@ export function buildModel(t) {
     const rpk = num(w.research_robust_peak), fn = num(w.fair_now);
     const trendData = { daily: dh, slope: num(w.trend_slope_pct_day), off_peak: rpk != null && fn != null ? Math.round((fn / rpk - 1) * 1000) / 10 : num(w.pct_off_peak), peakSrc: rpk != null ? "research robust peak" : "trend peak", off_peak_trend: num(w.pct_off_peak), accel: num(w.trend_accel_pct_day), phase: w.phase || null, trimmedN: ss.length - kept.length, fair_now: num(w.fair_now), peak: rpk ?? num(w.peak_median), peak_date: rpk != null ? w.research_robust_peak_date : w.peak_date || null, win: num(w.trend_window_days), n: num(w.trend_n), line_today: num(w.trend_line_today), peak_n: num(w.peak_n), zone_mid: num(w.zone_mid), deal_ceiling: num(w.deal_ceiling), ceil_basis: w.deal_ceiling_basis || null, outliers: num(w.outliers_trimmed), s7med: num(w.sold_7d_median), s7n: num(w.sold_7d_n), postPeakSlope: num(pick(w, "post_peak_slope")), slopeBasis: w.slope_basis || null };
     const [nm, variant] = short(w.name);
-    return { id: w.id, name: nm, variant, full: w.name, number: w.number, lang: /jap/i.test(w.language || "") ? "JP" : "EN", rarity: w.rarity,
+    return { id: w.id, name: nm, variant, full: w.name, liq: liqFor(w),   // liquidity / sell-through (research/liquidity.py), display only
+      number: w.number, lang: /jap/i.test(w.language || "") ? "JP" : "EN", rarity: w.rarity,
       target, sug, effBuy, src, ref, wflags, trendData, med7, med30: num(h.median_30d), s7: num(h.sales_7d), s30: num(h.sales_30d), trend: h.trend || null,
       lastSale: h.last_sale || null, outliers: num(h.outliers_dropped), ebayTotal: num(h.ebay_total) ?? num(a.ebay_total), histDate: h.date || null, histCount: t.history.filter((r) => r.card_id === w.id).length, sales: ss, daily,
       lowest, lowestTotal, listings, auctions, binCount: num(a.bin_count), auctionCount: num(a.auction_count), scanned_at: a.scanned_at, synced_at: w.synced_at || null, trendAt: w.trend_changed_at || null, refAt: w.reference_updated_at || null, activeCount: num(a.reputable_count) ?? num(h.active_count),
