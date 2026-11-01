@@ -178,3 +178,11 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .liq.high{border-color:#2ee6a6;color:#2ee6a6}.liq.medium{border-color:#ffcb05;color:#ffcb05}.liq.low{border-color:#ff4d4d;color:#ff8080}.liq.unknown{border-color:#6b6890;color:#b9b6d6}
 .liqc{margin:4px 0;padding:3px 8px;border-radius:6px;background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.5);color:#ffb3b3;font-size:12px;font-weight:700}
 .liqst b .liq{font-size:13px}
+
+/* Set filter (2026-11-01) */
+.setbar{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:10px 0 4px;padding:2px 0}
+.setbar::-webkit-scrollbar{display:none}
+.setbar button{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);color:var(--tx);border-radius:999px;padding:0 14px;min-height:40px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;white-space:nowrap}
+.setbar button small{color:var(--mut);font-weight:600;margin-left:2px}
+.setbar button.on{background:var(--yel);color:var(--bg);border-color:var(--yel)}.setbar button.on small{color:var(--bg)}
+.setn{font-size:11.5px;color:var(--mut);margin:1px 0 2px}

@@ -16,6 +16,15 @@ function trimSales(ss) {
   return a.filter((s, i) => { const t = Date.parse(s.sold_date); const nb = a.filter((o, j) => j !== i && Math.abs(Date.parse(o.sold_date) - t) <= 3 * 864e5).map((o) => +o.price);
     if (nb.length < 3) return true; const mm = median(nb); return +s.price >= 0.33 * mm && +s.price <= 3 * mm; });
 }
+// 2026-11-01 set filter: short set name from the id prefix, falling back to the watchlist set field.
+const SET_BY_PREFIX = [[/^(30c-|en-30c-)/, "30th Celebration"], [/^en-asc-/, "Ascended Heroes"], [/^en-me01-/, "Mega Evolution"], [/^en-me02-/, "Phantasmal Flames"],
+  [/^en-me03-/, "Perfect Order"], [/^en-me04-/, "Chaos Rising"], [/^en-me05-/, "Pitch Black"], [/^en-me06-/, "Delta Reign"],
+  [/^en-sv08-/, "Surging Sparks"], [/^en-sv09-/, "Journey Together"], [/^en-sv10-/, "Destined Rivals"]];
+export function setOf(w) {
+  for (const [re, n] of SET_BY_PREFIX) if (re.test(w.id || "")) return n;
+  const raw = String(w.set_name || w.set || "Other");
+  return raw.replace(/^.*—/, "").replace(/\s*\(.*\)\s*$/, "").replace(/^Pokémon TCG:\s*/, "").trim() || "Other";
+}
 export function buildModel(t) {
   // Defense in depth: only cards currently on the watchlist are shown; withdrawn calls are ignored.
   const watchIds = new Set(t.watchlist.map((w) => w.id));
@@ -50,7 +59,7 @@ export function buildModel(t) {
     const rpk = num(w.research_robust_peak), fn = num(w.fair_now);
     const trendData = { daily: dh, slope: num(w.trend_slope_pct_day), off_peak: rpk != null && fn != null ? Math.round((fn / rpk - 1) * 1000) / 10 : num(w.pct_off_peak), peakSrc: rpk != null ? "research robust peak" : "trend peak", off_peak_trend: num(w.pct_off_peak), accel: num(w.trend_accel_pct_day), phase: w.phase || null, trimmedN: ss.length - kept.length, fair_now: num(w.fair_now), peak: rpk ?? num(w.peak_median), peak_date: rpk != null ? w.research_robust_peak_date : w.peak_date || null, win: num(w.trend_window_days), n: num(w.trend_n), line_today: num(w.trend_line_today), peak_n: num(w.peak_n), zone_mid: num(w.zone_mid), deal_ceiling: num(w.deal_ceiling), ceil_basis: w.deal_ceiling_basis || null, outliers: num(w.outliers_trimmed), s7med: num(w.sold_7d_median), s7n: num(w.sold_7d_n), postPeakSlope: num(pick(w, "post_peak_slope")), slopeBasis: w.slope_basis || null };
     const [nm, variant] = short(w.name);
-    return { id: w.id, name: nm, variant, full: w.name, liq: liqFor(w),   // liquidity / sell-through (research/liquidity.py), display only
+    return { id: w.id, name: nm, variant, full: w.name, set: setOf(w), liq: liqFor(w),   // liquidity / sell-through (research/liquidity.py), display only
       number: w.number, lang: /jap/i.test(w.language || "") ? "JP" : "EN", rarity: w.rarity,
       target, sug, effBuy, src, ref, wflags, trendData, med7, med30: num(h.median_30d), s7: num(h.sales_7d), s30: num(h.sales_30d), trend: h.trend || null,
       lastSale: h.last_sale || null, outliers: num(h.outliers_dropped), ebayTotal: num(h.ebay_total) ?? num(a.ebay_total), histDate: h.date || null, histCount: t.history.filter((r) => r.card_id === w.id).length, sales: ss, daily,

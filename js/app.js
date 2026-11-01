@@ -18,7 +18,7 @@ const TEAM = [
   { name: "Dashboard Designer", role: "Designs dashboards & decision tools", color: "#c86bff" },
 ];
 const who = (n) => TEAM.find((t) => t.name === n)?.color || "#a9a3c9";
-const S = { model: null, alerts: [], feed: [], scans: [], reports: [], error: null, q: "", sort: "dist", lang: "all" };
+const S = { model: null, alerts: [], feed: [], scans: [], reports: [], error: null, q: "", sort: "dist", lang: "all", set: localStorage.getItem("cc-set") || "all" };
 const $app = document.getElementById("app");
 const small = () => matchMedia("(max-width:600px)").matches;
 const route = () => (location.hash.replace(/^#\/?/, "") || "deals").split("/");
@@ -263,7 +263,7 @@ function vCards() {
   <div class="filters"><input id="q" type="search" placeholder="Search card or number" value="${esc(S.q)}" aria-label="Search cards">
   <div class="seg">${["all", "EN", "JP"].map((l) => `<button data-lang="${l}" class="${S.lang === l ? "on" : ""}">${l}</button>`).join("")}</div>
   <select id="sort" aria-label="Sort">${[["dist", "Closest to zone"], ["value", "Highest value"], ["name", "Name"]].map(([k, l]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div>${sigCompact(c)}${c.roi?.atAsk?.multAtTarget != null ? `<div class="mrow s"><span>net @ target${c.roi.targetSrc === "precedent" ? " (prec.)" : ""}</span><span class="n">${xf(c.roi.atAsk.multAtTarget)}</span></div>` : ""}${c.roi?.upside && !c.roi.upside.none ? `<div class="mrow s"><span>12-mo prec. ${m2(c.roi.upside.low)}–${m2(c.roi.upside.high)}</span><span class="n">${c.roi.upside.cand2x ? "2×✓" : ""}</span></div>` : ""}${c.roi?.exit && !c.roi.exit.none ? `<div class="mrow s"><span>exit est. ${m2(c.roi.exit.target)} · net ${m2(c.roi.exit.net)}</span><span class="n">${sigBadge(c.roi.exit)}</span></div>` : ""}${liqLine(c.liq)}</article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
+  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div><div class="setn">${esc(c.set || "")}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div>${sigCompact(c)}${c.roi?.atAsk?.multAtTarget != null ? `<div class="mrow s"><span>net @ target${c.roi.targetSrc === "precedent" ? " (prec.)" : ""}</span><span class="n">${xf(c.roi.atAsk.multAtTarget)}</span></div>` : ""}${c.roi?.upside && !c.roi.upside.none ? `<div class="mrow s"><span>12-mo prec. ${m2(c.roi.upside.low)}–${m2(c.roi.upside.high)}</span><span class="n">${c.roi.upside.cand2x ? "2×✓" : ""}</span></div>` : ""}${c.roi?.exit && !c.roi.exit.none ? `<div class="mrow s"><span>exit est. ${m2(c.roi.exit.target)} · net ${m2(c.roi.exit.net)}</span><span class="n">${sigBadge(c.roi.exit)}</span></div>` : ""}${liqLine(c.liq)}</article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
 }
 
 // ---------- Card page
@@ -277,7 +277,7 @@ function vCard(id) {
   const tgt = c.target.buy != null ? `<div class="st"><small>YOUR BUY TARGET · ${c.ref.kind === "manual" || c.ref.manual != null ? "manual" : c.ref.kind ? "auto" : "no data"}</small><b class="yel">${money(c.target.buy)}</b>${c.med7 ? pct((c.med7 / c.target.buy - 1) * 100) + " to go" : ""}${c.sug.buy != null ? `<br><small>suggested ${money(c.sug.buy)} (research)</small>` : ""}</div>`
     : c.sug.buy == null ? `<div class="st"><small>SUGGESTED BUY-BELOW <span class="sugg">research</span></small><b>—</b>no suggested zone yet<br><small>no target set</small></div>`
     : `<div class="st"><small>SUGGESTED BUY-BELOW <span class="sugg">research</span></small><b class="grn">${money(c.sug.buy)}</b>${c.dist != null ? (c.dist <= 0 ? "median in zone" : pct(c.dist) + " to go") : "no zone yet"}<br><small>no target set</small></div>`;
-  return `<a class="back" href="#/cards">← All cards</a><section class="cardhead"><h1>${esc(c.name)} <span>${esc(c.number)}</span></h1><p>${c.variant ? esc(c.variant) + " · " : ""}${c.lang === "JP" ? "Japanese" : "English"} · raw · eBay sold comps, sellers ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</p></section>
+  return `<a class="back" href="#/cards">← All cards</a><section class="cardhead"><h1>${esc(c.name)} <span>${esc(c.number)}</span></h1><p>${esc(c.set || "")} · ${c.variant ? esc(c.variant) + " · " : ""}${c.lang === "JP" ? "Japanese" : "English"} · raw · eBay sold comps, sellers ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</p></section>
   ${sigFull(c, l ? priceBtn(l, { key: "sig-" + c.id, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested buy-below" }) : "")}<div class="stats"><div class="st"><small>7D SOLD MEDIAN</small><b>${money(c.med7)}</b>${c.s7 != null ? c.s7 + " sales" : ""}${c.trend ? ` · trend <b class="inl">${esc(c.trend)}</b>` : ""}<br>30d ${money(c.med30)}${c.s30 != null ? ` (${c.s30} sales)` : ""}${c.lastSale ? ` · last $${esc(c.lastSale.replace("@", " on "))}` : ""}</div>
   <div class="st"><small>LOWEST REPUTABLE ASK</small><b class="pink">${money(l?.total)}</b>${c.askVsMed != null ? pct(c.askVsMed, 1) + " vs median" : "no listing"}</div>${tgt}
   <div class="st"><small>ACTIVE (REPUTABLE)</small><b>${c.activeCount ?? "—"}</b>${c.ebayTotal != null ? `of ${c.ebayTotal.toLocaleString()} on eBay · ` : ""}scanned ${tCT(c.scanned_at)}</div>${liqPanel(c.liq)}</div>
@@ -302,13 +302,25 @@ function vTeam() {
 // ---------- render / boot
 let lastKey = "", lastHtml = "";
 const detKey = (d) => d.dataset.k || (d.querySelector("summary")?.textContent || "").replace(/\d+/g, "#").slice(0, 60);
+// 2026-11-01 set filter chip row (deals, radar, cards); remembered in localStorage "cc-set"
+function setBar(sets) {
+  const n = (k) => S.model.cards.filter((c) => k === "all" || c.set === k).length;
+  return `<nav class="setbar" aria-label="Filter by set">${[["all", "All sets"], ...sets.map((x) => [x, x])].map(([k, l]) => `<button data-set="${esc(k)}" class="${S.set === k ? "on" : ""}" aria-pressed="${S.set === k}">${esc(l)} <small>${n(k)}</small></button>`).join("")}</nav>`;
+}
 function render(force) {
   if (!S.model) return;
   const [r, arg] = route(), tab = r === "card" ? "cards" : r;
   const views = { deals: vDeals, radar: vRadar, cards: vCards, card: () => vCard(arg), team: vTeam, account: vAccount, paper: () => vPaper(S.paper, S.model?.byId) };
+  const setTab = ["deals", "radar", "cards"].includes(r), full = S.model, fullAl = S.alerts;
+  const sets = [...new Set(full.cards.map((c) => c.set))].sort((a, b) => (a === "30th Celebration" ? -1 : b === "30th Celebration" ? 1 : a.localeCompare(b)));
+  if (S.set !== "all" && !sets.includes(S.set)) S.set = "all";
+  if (setTab && S.set !== "all") { const cs = full.cards.filter((c) => c.set === S.set), ids = new Set(cs.map((c) => c.id));
+    S.model = { ...full, cards: cs }; S.alerts = fullAl.filter((a) => ids.has(a.card_id)); }
   const y = window.scrollY, key = location.hash;
   if (r === "account" && key === lastKey && !force) return;   // don't wipe a half-typed password on data polls
-  const html = shell((views[r] || vDeals)(), views[r] ? tab : "deals");
+  let body; try { body = (views[r] || vDeals)(); } finally { S.model = full; S.alerts = fullAl; }
+  if (setTab || !views[r]) body = setBar(sets) + body;
+  const html = shell(body, views[r] ? tab : "deals");
   if (key === lastKey && html === lastHtml) return;           // nothing changed: leave the DOM alone
   // Preserve UI state across data refreshes: open <details>, horizontal strips, focused input.
   const same = key === lastKey;
@@ -328,6 +340,8 @@ function bind() {
   document.querySelectorAll("details.pt > summary").forEach((sm) => (sm.onclick = (e) => { e.preventDefault(); e.stopPropagation(); const d = sm.parentElement; d.open = !d.open; }));
   const q = document.getElementById("q");
   if (q) { q.oninput = () => { S.q = q.value; const pos = q.selectionStart; render(); const n = document.getElementById("q"); n.focus(); n.setSelectionRange(pos, pos); }; }
+  document.querySelectorAll("[data-set]").forEach((b) => (b.onclick = () => { S.set = b.dataset.set; localStorage.setItem("cc-set", S.set); render(); }));
+  const sb = document.querySelector(".setbar .on"); if (sb && sb.scrollIntoView && !sb.dataset.seen) { sb.dataset.seen = 1; const pe = sb.parentElement; if (sb.offsetLeft + sb.offsetWidth > pe.clientWidth) pe.scrollLeft = Math.max(0, sb.offsetLeft - 16); }
   document.querySelectorAll("[data-lang]").forEach((b) => (b.onclick = () => { S.lang = b.dataset.lang; render(); }));
   const so = document.getElementById("sort"); if (so) so.onchange = () => { S.sort = so.value; render(); };
   bindAccount();
