@@ -134,9 +134,9 @@ function roiPanel(c) {
   <p class="note">Net = sale × (1 − ${(f.ebayFeePct * 100).toFixed(2)}%) − ${m2(f.perOrderFee)} − outbound shipping (${shipTxt}). Cost = item + shipping × ${(1 + f.taxRate).toFixed(3)}. Prices are item+ship from seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb listings.${r.targetNote ? ` Target source: ${esc(r.targetNote)}.` : ""}</p></section>`;
 }
 // Retail MSRP buy board (watchlist retail_msrp, research/msrp_board.py). Display only: no alerts, targets or paper trades change.
-const RV = { flip: ["roig", "🏬 Buy at MSRP: flip"], hold: ["roio", "🏬 Buy at MSRP: hold"], skip: ["roil", "Skip at MSRP"], unknown: ["exna", "MSRP unknown"] };
+const RV = { flip: ["roig", "🏬 Buy at MSRP: flip"], hold: ["roio", "🏬 Buy at MSRP: hold"], skip: ["roil", "Skip at MSRP"], unknown: ["exna", "MSRP unknown"], noaccess: ["roil", "🚫 No retail access"] };
 const rvBadge = (r) => { const [cl, t] = RV[r.code] || RV.unknown; return `<span class="roiv ${cl}">${t}</span>${r.presale ? ` <span class="roiv roit" title="${esc(r.presaleNote || "")}">presale data</span>` : ""}`; };
-const rvShort = (r) => { const [cl] = RV[r.code] || RV.unknown; return `<span class="roiv ${cl}" title="${esc(r.verdict)}">${r.code === "flip" ? "flip" : r.code === "hold" ? "hold" : r.code}</span>${r.presale ? ` <span class="roiv roit" title="${esc(r.presaleNote || "")}">presale</span>` : ""}`; };
+const rvShort = (r) => { const [cl] = RV[r.code] || RV.unknown; return `<span class="roiv ${cl}" title="${esc(r.verdict)}">${r.code === "flip" ? "flip" : r.code === "hold" ? "hold" : r.code === "noaccess" ? "no retail access" : r.code}</span>${r.presale ? ` <span class="roiv roit" title="${esc(r.presaleNote || "")}">presale</span>` : ""}`; };
 const xc = (v, g = 1.5) => `<b class="${v >= g ? "pos" : v < 1 ? "neg" : ""}">${xf(v)}</b>`;
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ""); } catch { return "source"; } };
 function retailPanel(c) {
@@ -155,10 +155,10 @@ function retailPanel(c) {
 }
 function retailBuysBox() {
   const all = S.model.cards.filter((c) => c.roi?.retail), top = retailBuys(S.model.cards, 5); if (!all.length) return "";
-  const skip = all.filter((c) => c.roi.retail.code === "skip").length;
+  const skip = all.filter((c) => c.roi.retail.code === "skip").length, noacc = all.filter((c) => c.roi.retail.code === "noaccess");
   return `<section class="panel retailbox"><h2>🏬 Best retail buys <small>if a restock lets you pay MSRP · after tax + eBay fees</small></h2>${top.length ? `<table class="tbl roitbl"><thead><tr><th>Item</th><th class="n">MSRP</th><th class="n">Flip now</th><th class="n hide-s">Hold 12-mo mid</th><th>Buy to</th></tr></thead><tbody>
   ${top.map((c) => { const r = c.roi.retail; return `<tr onclick="location.hash='#/card/${encodeURIComponent(c.id)}'"><td>${cardLink(c, `<b>${esc(c.name)}</b>`)} ${liqBadge(c.liq)}</td><td class="n">${m2(r.msrp)}</td><td class="n">${xc(r.flipX, 1.25)} <small>${r.flipProfit >= 0 ? "+" : ""}${m2(r.flipProfit)}</small></td><td class="n hide-s">${r.hold ? xf(r.hold.mid) : "—"}</td><td>${rvShort(r)}</td></tr>`; }).join("")}</tbody></table>` : `<p class="empty">No sealed item clears fees at MSRP right now.</p>`}
-  <p class="note">${top.length} buy${top.length === 1 ? "" : "s"} shown, ${skip} sealed item${skip === 1 ? "" : "s"} skip at MSRP (the $13/$22 outbound shipping and 13.25% fees eat thin flips). Hold = precedent est., not a promise. Presale rows use presale sold data.</p></section>`;
+  <p class="note">${top.length} buy${top.length === 1 ? "" : "s"} shown, ${skip} sealed item${skip === 1 ? "" : "s"} skip at MSRP (the $13/$22 outbound shipping and 13.25% fees eat thin flips). Hold = precedent est., not a promise. Presale rows use presale sold data.${noacc.length ? ` No retail access (not buyable at MSRP): ${noacc.map((c) => esc(c.name)).join(", ")}.` : ""}</p></section>`;
 }
 function netUpsideBox() {
   const top = netUpside(S.model.cards, 5); if (!top.length) return "";
