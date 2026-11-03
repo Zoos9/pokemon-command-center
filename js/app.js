@@ -8,6 +8,7 @@ import { alertPrice, alertActive } from "./fields.js";
 import { sigCompact, sigFull, freshTag } from "./signals.js";
 import { vPaper } from "./paper.js";
 import { liqLine, liqPanel, liqBadge } from "./liquidity.js";
+import { bestBuys, oppZone, oppBadge, oppLine, oppPanel } from "./opportunity.js";
 import { bottomSection, bottomModel, meterHtml, phaseChip, fmtWindow } from "./bottom.js";
 
 const TEAM = [
@@ -18,7 +19,7 @@ const TEAM = [
   { name: "Dashboard Designer", role: "Designs dashboards & decision tools", color: "#c86bff" },
 ];
 const who = (n) => TEAM.find((t) => t.name === n)?.color || "#a9a3c9";
-const S = { model: null, alerts: [], feed: [], scans: [], reports: [], error: null, q: "", sort: "dist", lang: "all", set: localStorage.getItem("cc-set") || "all" };
+const S = { model: null, alerts: [], feed: [], scans: [], reports: [], error: null, q: "", sort: "dist", oppSort: "score", oppN: 5, lang: "all", set: localStorage.getItem("cc-set") || "all" };
 const $app = document.getElementById("app");
 const small = () => matchMedia("(max-width:600px)").matches;
 const route = () => (location.hash.replace(/^#\/?/, "") || "deals").split("/");
@@ -160,6 +161,15 @@ function retailBuysBox() {
   ${top.map((c) => { const r = c.roi.retail; return `<tr onclick="location.hash='#/card/${encodeURIComponent(c.id)}'"><td>${cardLink(c, `<b>${esc(c.name)}</b>`)} ${liqBadge(c.liq)}</td><td class="n">${m2(r.msrp)}</td><td class="n">${xc(r.flipX, 1.25)} <small>${r.flipProfit >= 0 ? "+" : ""}${m2(r.flipProfit)}</small></td><td class="n hide-s">${r.hold ? xf(r.hold.mid) : "—"}</td><td>${rvShort(r)}</td></tr>`; }).join("")}</tbody></table>` : `<p class="empty">No sealed item clears fees at MSRP right now.</p>`}
   <p class="note">${top.length} buy${top.length === 1 ? "" : "s"} shown, ${skip} sealed item${skip === 1 ? "" : "s"} skip at MSRP (the $13/$22 outbound shipping and 13.25% fees eat thin flips). Hold = precedent est., not a promise. Presale rows use presale sold data.${noacc.length ? ` No retail access (not buyable at MSRP): ${noacc.map((c) => esc(c.name)).join(", ")}.` : ""}</p></section>`;
 }
+// 2026-11-03 "Best buys now": ranked opportunity score (research/opportunity.py). Respects the set filter (render() narrows S.model).
+function bestBuysBox() {
+  const all = S.model.cards.filter((c) => c.opp), ranked = all.filter((c) => c.opp.eligible && c.opp.score != null); if (!all.length) return "";
+  const top = bestBuys(S.model.cards, S.oppSort, S.oppN), notR = all.length - ranked.length;
+  const th = (k, l, cls = "n") => `<th class="${cls}"><button class="link osort${S.oppSort === k ? " on" : ""}" data-osort="${k}" aria-label="Sort by ${l}">${l}${S.oppSort === k ? " ▾" : ""}</button></th>`;
+  return `<section class="panel bestbuys"><h2>⭐ Best buys now <small>risk-adjusted score 0-100 at today's lowest valid ask · after tax + eBay fees</small></h2>${top.length ? `<table class="tbl roitbl opptbl"><thead><tr><th>#</th><th>Item</th>${th("score", "Score")}<th class="n">Ask</th>${th("zone", "Zone", "n hide-s")}${th("pct", "Net %")}</tr></thead><tbody>
+  ${top.map((c) => { const o = c.opp; return `<tr onclick="location.hash='#/card/${encodeURIComponent(c.id)}'" title="${esc(o.note)}"><td class="n">${o.rank}</td><td>${cardLink(c, cname(c))}${o.actionable ? ` <span class="roiv roig" title="in/below zone, positive net after fees, medium+ liquidity, not a falling knife: check the listing by hand">ACTIONABLE</span>` : ""}${o.knife ? ` <span class="kn" title="falling knife">🔪</span>` : ""} ${liqBadge(c.liq)}<div class="oppn hide-s">${esc(o.note.replace(/^#\d+ of \d+, score \d+: /, "").replace(/ - ACTIONABLE \(verify the listing by hand\)$/, ""))}</div><div class="oppn show-s">${esc(`${oppZone(o)} · ${o.knife ? "falling knife" : o.phase || "phase ?"} · sell ${m2(o.sale)} ${o.saleSrc || ""}`)}</div></td><td class="n">${oppBadge(o)}</td><td class="n">${m2(o.ask)}</td><td class="n hide-s">${esc(oppZone(o))}</td><td class="n"><b class="${o.pct >= 50 ? "pos" : ""}">${o.pct >= 0 ? "+" : ""}${Math.round(o.pct)}%</b></td></tr>`; }).join("")}</tbody></table>
+  <p class="note"><button class="link" id="oppmore">${S.oppN === 5 ? `Show top ${Math.min(10, ranked.length)}` : "Show top 5"}</button> · ${ranked.length} ranked, ${notR} not ranked (presale, thin data, no valid ask, or loses money after fees). Score = profit 40 + zone 25 + liquidity 15 + confidence 10 + phase 10. 12-mo sale prices are estimates (research / precedent), not promises; ACTIONABLE still needs a manual look at the listing. Display only: Deal/Watch alerts and buy_below are unchanged.</p>` : `<p class="empty">No row clears fees at today's ask${S.set !== "all" ? " in this set" : ""}.</p>`}</section>`;
+}
 function netUpsideBox() {
   const top = netUpside(S.model.cards, 5); if (!top.length) return "";
   return `<section class="panel"><h2>💰 Best net upside <small>12-mo target vs today's lowest ask, after eBay fees</small></h2><table class="tbl roitbl"><thead><tr><th>Item</th><th class="n">Ask</th><th class="n">Target</th><th class="n">Net ×</th><th class="n hide-s">Profit</th></tr></thead><tbody>
@@ -200,6 +210,7 @@ function vDeals() {
     ${sell}
     ${d.suggested.length ? `<section><h2>💡 Under suggested zone <small>researcher's zone, not your target · ${money(CONFIG.MIN_CARD_VALUE)}+ cards · seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</small></h2><div class="deals">${d.suggested.map((c) => dealCard(c, "suggested")).join("")}</div></section>` : ""}
     ${bulk}
+    ${bestBuysBox()}
     ${netUpsideBox()}
     ${retailBuysBox()}
     <div class="split"><section><h2>🎯 Closest to buy zone</h2><table class="tbl"><thead><tr><th>Card</th><th>Phase</th><th>7d med</th><th>Buy &lt;</th><th>Distance</th><th class="hide-s">Trend</th><th class="hide-s">Low ask</th><th class="hide-s">Sales 7d</th></tr></thead><tbody>${rows}</tbody></table></section>
@@ -257,13 +268,13 @@ function vRadar() {
 // ---------- Cards list
 function vCards() {
   let cs = S.model.cards.filter((c) => (S.lang === "all" || c.lang === S.lang) && (!S.q || (c.full + " " + c.number).toLowerCase().includes(S.q.toLowerCase())));
-  const sorters = { dist: (a, b) => (a.dist ?? 999) - (b.dist ?? 999), value: (a, b) => (b.med7 || 0) - (a.med7 || 0), name: (a, b) => a.name.localeCompare(b.name) };
-  cs.sort(sorters[S.sort]);
+  const sorters = { dist: (a, b) => (a.dist ?? 999) - (b.dist ?? 999), value: (a, b) => (b.med7 || 0) - (a.med7 || 0), name: (a, b) => a.name.localeCompare(b.name), opp: (a, b) => (b.opp?.score ?? -1) - (a.opp?.score ?? -1) || (a.dist ?? 999) - (b.dist ?? 999) };
+  cs.sort(sorters[S.sort] || sorters.dist);
   return `<section class="hero"><h1 class="verdict">All cards <small>${S.model.cards.length}</small></h1></section>
   <div class="filters"><input id="q" type="search" placeholder="Search card or number" value="${esc(S.q)}" aria-label="Search cards">
   <div class="seg">${["all", "EN", "JP"].map((l) => `<button data-lang="${l}" class="${S.lang === l ? "on" : ""}">${l}</button>`).join("")}</div>
-  <select id="sort" aria-label="Sort">${[["dist", "Closest to zone"], ["value", "Highest value"], ["name", "Name"]].map(([k, l]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
-  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div><div class="setn">${esc(c.set || "")}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div>${sigCompact(c)}${c.roi?.atAsk?.multAtTarget != null ? `<div class="mrow s"><span>net @ target${c.roi.targetSrc === "precedent" ? " (prec.)" : ""}</span><span class="n">${xf(c.roi.atAsk.multAtTarget)}</span></div>` : ""}${c.roi?.upside && !c.roi.upside.none ? `<div class="mrow s"><span>12-mo prec. ${m2(c.roi.upside.low)}–${m2(c.roi.upside.high)}</span><span class="n">${c.roi.upside.cand2x ? "2×✓" : ""}</span></div>` : ""}${c.roi?.exit && !c.roi.exit.none ? `<div class="mrow s"><span>exit est. ${m2(c.roi.exit.target)} · net ${m2(c.roi.exit.net)}</span><span class="n">${sigBadge(c.roi.exit)}</span></div>` : ""}${liqLine(c.liq)}</article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
+  <select id="sort" aria-label="Sort">${[["dist", "Closest to zone"], ["opp", "Best-buy score"], ["value", "Highest value"], ["name", "Name"]].map(([k, l]) => `<option value="${k}" ${S.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></div>
+  <div class="grid">${cs.map((c) => cardLink(c, `<article class="mini"><div>${cname(c)}</div><div class="setn">${esc(c.set || "")}</div>${spark(c.daily.map((x) => x[1]), 150, 34, phaseColor(c.sug.phase))}<div class="mrow"><span class="n big2">${money(c.med7)}</span>${phase(c.sug.phase)}</div><div class="mrow s"><span>${c.dist == null ? "no zone" : c.dist <= 2 ? "in zone" : pct(c.dist) + " above " + (c.src === "target" ? "your target" : "suggested")}</span><span>ask</span></div>${sigCompact(c)}${c.roi?.atAsk?.multAtTarget != null ? `<div class="mrow s"><span>net @ target${c.roi.targetSrc === "precedent" ? " (prec.)" : ""}</span><span class="n">${xf(c.roi.atAsk.multAtTarget)}</span></div>` : ""}${c.roi?.upside && !c.roi.upside.none ? `<div class="mrow s"><span>12-mo prec. ${m2(c.roi.upside.low)}–${m2(c.roi.upside.high)}</span><span class="n">${c.roi.upside.cand2x ? "2×✓" : ""}</span></div>` : ""}${c.roi?.exit && !c.roi.exit.none ? `<div class="mrow s"><span>exit est. ${m2(c.roi.exit.target)} · net ${m2(c.roi.exit.net)}</span><span class="n">${sigBadge(c.roi.exit)}</span></div>` : ""}${oppLine(c.opp)}${liqLine(c.liq)}</article>`)).join("") || `<p class="empty">No cards match.</p>`}</div>`;
 }
 
 // ---------- Card page
@@ -280,7 +291,7 @@ function vCard(id) {
   return `<a class="back" href="#/cards">← All cards</a><section class="cardhead"><h1>${esc(c.name)} <span>${esc(c.number)}</span></h1><p>${esc(c.set || "")} · ${c.variant ? esc(c.variant) + " · " : ""}${c.lang === "JP" ? "Japanese" : "English"} · raw · eBay sold comps, sellers ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</p></section>
   ${sigFull(c, l ? priceBtn(l, { key: "sig-" + c.id, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested buy-below" }) : "")}<div class="stats"><div class="st"><small>7D SOLD MEDIAN</small><b>${money(c.med7)}</b>${c.s7 != null ? c.s7 + " sales" : ""}${c.trend ? ` · trend <b class="inl">${esc(c.trend)}</b>` : ""}<br>30d ${money(c.med30)}${c.s30 != null ? ` (${c.s30} sales)` : ""}${c.lastSale ? ` · last $${esc(c.lastSale.replace("@", " on "))}` : ""}</div>
   <div class="st"><small>LOWEST REPUTABLE ASK</small><b class="pink">${money(l?.total)}</b>${c.askVsMed != null ? pct(c.askVsMed, 1) + " vs median" : "no listing"}</div>${tgt}
-  <div class="st"><small>ACTIVE (REPUTABLE)</small><b>${c.activeCount ?? "—"}</b>${c.ebayTotal != null ? `of ${c.ebayTotal.toLocaleString()} on eBay · ` : ""}scanned ${tCT(c.scanned_at)}</div>${liqPanel(c.liq)}</div>
+  <div class="st"><small>ACTIVE (REPUTABLE)</small><b>${c.activeCount ?? "—"}</b>${c.ebayTotal != null ? `of ${c.ebayTotal.toLocaleString()} on eBay · ` : ""}scanned ${tCT(c.scanned_at)}</div>${liqPanel(c.liq)}${oppPanel(c.opp)}</div>
   ${l ? `<div class="lowl"><div class="lowp">Lowest reputable ${priceBtn(l, { key: "low-" + c.id, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested buy-below" })}</div>${l.title ? `“${esc(l.title)}” ` : ""}<span class="badges">${legit(l)}${badges(l)}</span>${l.url ? ` <a href="${esc(l.url)}" target="_blank" rel="noopener">eBay ↗</a>` : ""}</div>` : ""}
   ${bottomSection(c, small())}${roiPanel(c)}${retailPanel(c)}<div class="cardgrid"><section class="panel">${priceChart(c, small())}<p class="note">Dots are individual eBay sold comps${c.outliers ? ` (${c.outliers} outlier${c.outliers > 1 ? "s" : ""} dropped from the median)` : ""}. Medians come from ${c.histCount} history snapshot${c.histCount === 1 ? "" : "s"}${c.histDate ? ` (${esc(c.histDate)})` : ""}; the trend line will fill in as daily snapshots accumulate.</p></section>
   <div><section class="panel call" style="border-color:${phaseColor(c.sug.phase)}">${c.sug.call ? `<h2 style="color:${phaseColor(c.sug.phase)}">Research: ${esc((c.sug.phase || "").toUpperCase())}</h2><p>${esc(c.sug.call)}</p>${c.sug.prediction ? `<p class="pred">${esc(c.sug.prediction)}</p>` : ""}<p>confidence <b>${esc(c.sug.conf || "?")}</b> · call ${esc(c.sug.date || "")} · review by ${esc(c.sug.review_by || "—")}</p>${c.sug.links.length ? `<details><summary>${c.sug.links.length} sources</summary>${c.sug.links.map((u) => `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(u.replace(/^https?:\/\//, "").slice(0, 60))}</a>`).join("")}</details>` : ""}` : `<p class="empty">No research call for this card yet.</p>`}</section>
@@ -344,6 +355,8 @@ function bind() {
   const sb = document.querySelector(".setbar .on"); if (sb && sb.scrollIntoView && !sb.dataset.seen) { sb.dataset.seen = 1; const pe = sb.parentElement; if (sb.offsetLeft + sb.offsetWidth > pe.clientWidth) pe.scrollLeft = Math.max(0, sb.offsetLeft - 16); }
   document.querySelectorAll("[data-lang]").forEach((b) => (b.onclick = () => { S.lang = b.dataset.lang; render(); }));
   const so = document.getElementById("sort"); if (so) so.onchange = () => { S.sort = so.value; render(); };
+  document.querySelectorAll("[data-osort]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); S.oppSort = b.dataset.osort; render(); }));
+  const om = document.getElementById("oppmore"); if (om) om.onclick = () => { S.oppN = S.oppN === 5 ? 10 : 5; render(); };
   bindAccount();
   const off = document.getElementById("pwoff"); if (off) off.onclick = () => { localStorage.setItem("cc-pw-banner-off", "1"); lastHtml = ""; render(); };
   const out = document.getElementById("signout"); if (out) out.onclick = async () => { await D.backend().signOut(); location.reload(); };

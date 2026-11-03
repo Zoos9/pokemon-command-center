@@ -186,3 +186,10 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .setbar button small{color:var(--mut);font-weight:600;margin-left:2px}
 .setbar button.on{background:var(--yel);color:var(--bg);border-color:var(--yel)}.setbar button.on small{color:var(--bg)}
 .setn{font-size:11.5px;color:var(--mut);margin:1px 0 2px}
+/* 2026-11-03 Best buys now (opportunity score) */
+.opp{display:inline-block;font-weight:800;font-size:12px;border-radius:6px;padding:1px 7px;white-space:nowrap;border:1.5px solid #6b6890;color:#d9d6f0}
+.opp.hi{border-color:#2ee6a6;color:#2ee6a6}.opp.mid{border-color:#ffcb05;color:#ffcb05}.opp.lo{border-color:#6b6890;color:#b9b6d6}
+.opptbl .oppn{font-size:11.5px;color:var(--mut);margin-top:2px;line-height:1.3}.opptbl .osort{font-weight:800;color:inherit;text-decoration:none}.opptbl .osort.on{color:#ffcb05}
+.oppst b .opp{font-size:13px}
+.opptbl .show-s{display:none}
+@media (max-width:600px){.opptbl .oppn{font-size:11px}.opptbl .show-s{display:block}}
