@@ -193,3 +193,10 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .oppst b .opp{font-size:13px}
 .opptbl .show-s{display:none}
 @media (max-width:600px){.opptbl .oppn{font-size:11px}.opptbl .show-s{display:block}}
+/* 2026-11-04 Long history (analog_history, research/analog_backtest.py) */
+.ana{display:inline-block;font-weight:800;font-size:11.5px;border-radius:6px;padding:1px 7px;white-space:nowrap;border:1.5px solid #6b6890;color:#d9d6f0;vertical-align:middle}
+.ana.pre{border-color:#ff9f1c;color:#ff9f1c}.ana.in{border-color:#2ee6a6;color:#2ee6a6}.ana.past{border-color:#3ba7ff;color:#3ba7ff}
+.anap .anag{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:6px 0}
+.anap .anag div{background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+.anap .anag small{display:block;color:var(--mut);font-size:11px}.anap .anag b{display:block;font-size:17px;margin:1px 0}
+.anap .anah{margin:4px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap}

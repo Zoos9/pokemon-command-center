@@ -28,7 +28,9 @@ export const TABLES = {
     // raw watchlist.json entry (jsonb); read only for optional extras like target_12mo (ROI view)
     data: "data", target_12mo: "target_12mo", target_12mo_confidence: "target_12mo_confidence", target_12mo_source: "target_12mo_source", upside_12mo: "upside_12mo", exit_plan: "exit_plan", sell_signal: "sell_signal", retail_msrp: "retail_msrp", liquidity: "liquidity",
     // 2026-11-03 best-buy opportunity score (research/opportunity.py); Supabase has no columns for these, they come from the data jsonb
-    opportunity_score: "opportunity_score", opportunity_rank: "opportunity_rank", opportunity_note: "opportunity_note", opportunity: "opportunity" } },
+    opportunity_score: "opportunity_score", opportunity_rank: "opportunity_rank", opportunity_note: "opportunity_note", opportunity: "opportunity",
+    // 2026-11-04 long-history analog timing (research/analog_backtest.py); from the data jsonb on Supabase
+    analog_history: "analog_history" } },
   sold_sales:      { fields: { card_id: "card_id", item_id: "item_id", price: "price_usd", sold_date: "sold_date", condition: "condition", title: "title", url: "url", seller: "seller", seller_feedback: "seller_feedback" } },
   active_snapshot: { fields: { card_id: "card_id", scanned_at: "scanned_at", ebay_total: "ebay_total", reputable_count: "reputable_count", bin_count: "bin_count", auction_count: "auction_count", lowest_total: "lowest_total", lowest: "lowest_reputable", listings: "listings",
     // fallbacks for the lowest listing when its jsonb lacks the per-listing fields
