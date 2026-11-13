@@ -26,6 +26,10 @@ const small = () => matchMedia("(max-width:600px)").matches;
 const route = () => (location.hash.replace(/^#\/?/, "") || "deals").split("/");
 
 // ---------- shell
+// 2026-11-13: how many cards have stale sold comps (scanner/sold_freshness.py); Deals on them are held as WATCH.
+const staleSold = () => { const cs = S.model?.cards || [], st = cs.filter((c) => c.fresh?.stale); if (!st.length) return "";
+  const r = st.map((c) => c.fresh.last_sold_refresh).filter(Boolean).sort().at(-1);
+  return ` · <span class="fr stale" title="Newest qualifying sold comp older than ${st[0].fresh.threshold_h ?? 36} h; Deal alerts on these cards are held as WATCH">⚠ stale sold data ${st.length}/${cs.length} cards${r ? ` · last sold refresh ${dCT(r)}` : ""}</span>`; };
 function shell(body, tab) {
   const scan = S.scans.at(-1), act = S.model?.cards.map((c) => c.scanned_at).filter(Boolean).sort().at(-1);
   const sold = S.model?.cards.flatMap((c) => c.sales.slice(-1).map((s) => s.sold_date)).sort().at(-1);
@@ -34,7 +38,7 @@ function shell(body, tab) {
   const scanErr = scan?.errors?.length ? ` · <span class="warn">${scan.errors.length} card${scan.errors.length > 1 ? "s" : ""} failed last scan</span>` : "";
   return `<header class="top"><a class="brand" href="#/deals"><span class="mk" aria-hidden="true">◆</span><span>COMMAND CENTER</span></a>
     <nav class="topnav">${nav}</nav>
-    <div class="fresh">${freshTag("listings", act)} · ${freshTag("trend", S.model?.cards.map((c) => c.refAt || c.synced_at).filter(Boolean).sort().at(-1))} · sold thru ${sold || "—"}${scanErr}${D.backend()?.signOut ? ` · <a class="link" href="#/account">🔑 password</a> · <button class="link" id="signout">sign out</button>` : ""}</div></header>${pwBanner()}
+    <div class="fresh">${freshTag("listings", act)} · ${freshTag("trend", S.model?.cards.map((c) => c.refAt || c.synced_at).filter(Boolean).sort().at(-1))} · sold thru ${sold || "—"}${staleSold()}${scanErr}${D.backend()?.signOut ? ` · <a class="link" href="#/account">🔑 password</a> · <button class="link" id="signout">sign out</button>` : ""}</div></header>${pwBanner()}
     ${S.error ? `<div class="err" role="alert">Data problem: ${esc(S.error)}</div>` : ""}
     <main>${body}</main><nav class="tabs">${nav}</nav>`;
 }

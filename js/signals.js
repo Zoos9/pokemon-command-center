@@ -39,15 +39,23 @@ export function sig(c) {
     else { status = "DEAL"; reason = `under target ${c2(target)} · ${stage || "trend pending"} · no predicted bottom`; }
   } else if (price <= ceil) { status = "DEAL"; reason = `under target and ≤ ${basis || "ceiling"} ${c2(ceil)}${stage ? ` (${stage})` : ""}`; }
   else { status = "WATCH"; reason = `under target but ${stage || "trend pending"}, needs ≤ ${c2(ceil)}`; }
+  // 2026-11-13 sold-data staleness guard (same rule as check_targets.alert_tier): never show DEAL on stale sold comps.
+  const fr = c.fresh || null, soldStale = !!(fr && fr.stale);
+  if (soldStale && status === "DEAL") { status = "WATCH"; reason = `stale sold data — would be DEAL (${reason})`; }
   const rebound = stage === "rising" && t.off_peak_trend != null && t.off_peak_trend <= REBOUND_PCT;   // rising over the window but still below the peak
   return { stage, slope: t.slope, postPeak: t.postPeakSlope, slopeBasis: t.slopeBasis, fair: r.fair, capped: r.fairCapped, lineToday: r.lineToday, ref: r.reference, pct: r.pct, p25: r.p25, k: r.k, askAdj, target, kind: r.kind, manual: r.manual,
     leading: r.leading, competitiveN: r.competitiveN, asksTotalN: r.asksTotalN, undercutN: r.undercutN, undercutShare: r.undercutShare,
-    zl, zm, zh, ceil, basis, win: fmtWindow(c.sug.wStart, c.sug.wEnd, c.sug.wText), conf: c.sug.conf, room, offPeak: t.off_peak, offPeakTrend: t.off_peak_trend, peakSrc: t.peakSrc, insuff: c.sug.insuff, askFloor: r.askFloor, sourceText: r.sourceText, refAt: c.refAt || c.synced_at, peak: t.peak, peakDate: t.peak_date, twin: t.win, price, status, reason, rebound };
+    zl, zm, zh, ceil, basis, win: fmtWindow(c.sug.wStart, c.sug.wEnd, c.sug.wText), conf: c.sug.conf, room, offPeak: t.off_peak, offPeakTrend: t.off_peak_trend, peakSrc: t.peakSrc, insuff: c.sug.insuff, askFloor: r.askFloor, sourceText: r.sourceText, refAt: c.refAt || c.synced_at, peak: t.peak, peakDate: t.peak_date, twin: t.win, price, status, reason, rebound, soldStale, fresh: fr };
 }
 const pctLbl = (s) => (s.pct != null ? `${Math.round(s.pct * 1000) / 10}%` : "—%");
 export const stagePill = (s) => { const i = stageInfo(s.stage);
   return i ? `<span class="stg" style="background:${i.col}">${i.ic} ${esc(s.stage)} <b>${p1(s.slope, true)}/d</b>${basisLbl(s.slopeBasis) ? ` <small>${basisLbl(s.slopeBasis)}</small>` : ""}</span>${s.rebound ? `<span class="stg2" title="Rising over the trend window, but still below its peak">${p1(s.offPeakTrend)} vs peak</span>` : ""}`
     : `<span class="stg none">trend pending</span>`; };
+export const soldStaleLine = (s) => (s.soldStale ? `<div class="liqc soldst" title="Deal alerts are held as WATCH until fresh sold comps arrive (newest comp older than ${esc(String(s.fresh?.threshold_h ?? 36))} h)">⚠ Stale sold data: ${esc(s.fresh?.reason || "sold comps too old")}</div>` : "");
+// 2026-11-13 PriceCharting cross-check (research/pricecharting_check.py): independent public sold price, display only.
+export const pcxLine = (x) => { if (!x || x.status !== "ok" || x.cross_check == null) return "";
+  const d = x.divergence_pct, big = d != null && Math.abs(d) > 15;
+  return `<div class="sgk pcx"><span title="${esc((x.cross_basis || "") + ". " + (x.note || ""))}">PriceCharting <b>${c2(x.cross_check)}</b>${d != null ? ` <b class="${big ? "warn" : ""}">${p1(d, true)}</b> vs our sold ${c2(x.our_sold_median)}` : ""} <small>(excl. ship${x.pc_newest_sale ? `, newest sale ${esc(String(x.pc_newest_sale).slice(5))}` : ""})</small>${x.url ? ` <a href="${esc(x.url)}" target="_blank" rel="noopener">↗</a>` : ""}</span></div>`; };
 export const statusPill = (s) => s.status ? `<span class="sts ${s.status.toLowerCase()}">${s.status}</span>` : `<span class="sts none">—</span>`;
 
 // Compact block for card rows (Cards grid, deal cards).
@@ -57,7 +65,7 @@ export function sigCompact(c) {
   <div class="sgk"><span>fair <b>${c2(s.fair)}</b></span><span>buy &lt; <b>${c2(s.target)}</b></span></div>
   ${s.insuff ? `<div class="insuf">⏳ No bottom call yet: ${esc(s.insuff)}</div>` : `<div class="sgk"><span title="predicted bottom">bottom <b>${s.zl != null ? `${money(s.zl)}–${money(s.zh)}` : "pending"}</b></span><span>${s.room == null ? "room —" : s.room <= 0 ? "<b class='g'>at/below zone</b>" : `room <b>${s.room.toFixed(0)}%</b>`}</span></div>`}
   <div class="sgk"><span>off peak <b>${p1(s.offPeak)}</b></span></div><div class="sgk"><span>${asksLine(s)}</span></div>
-  <div class="sgw">${esc(s.reason)}</div>${liqCaution(c.liq, s.status)}${st ? `<div class="fr stale">⚠ listings ${c.scanned_at ? ago(c.scanned_at) : "never scanned"}</div>` : ""}</div>`;
+  <div class="sgw">${esc(s.reason)}</div>${soldStaleLine(s)}${pcxLine(c.pcx)}${liqCaution(c.liq, s.status)}${st ? `<div class="fr stale">⚠ listings ${c.scanned_at ? ago(c.scanned_at) : "never scanned"}</div>` : ""}</div>`;
 }
 
 // Full panel for the card trajectory view.
@@ -70,7 +78,7 @@ export function sigFull(c, priceHtml) {
   const stageWhy = info ? `${esc(info.say)} Slope ${p1(s.slope, true)}/day${s.slopeBasis ? ` (measured ${s.slopeBasis === "post_peak" ? "since the peak" : `over the ${s.twin || 14}-day window`}; basis: ${esc(basisLbl(s.slopeBasis))})` : ""}. ${s.peak != null ? `${s.peakSrc === "research robust peak" ? "Research robust peak" : "Peak daily median"} ${c2(s.peak)}${s.peakDate ? ` on ${esc(String(s.peakDate).slice(5))}` : ""}; now ${p1(s.offPeak)} vs that peak.` : ""}${s.rebound ? " It is labelled rising because the trend window goes up, but it is still below its peak — read it as a rebound, not a new high." : ""}` : "No trend stage yet: not enough sold days after trimming outliers.";
   const comp = `<div><small>ASK COMPETITION</small><b>${n0(s.competitiveN)}<span class="of"> of ${n0(s.asksTotalN)}</span></b><span>${asksLine(s)} · ${n0(s.undercutN)} undercutting solds${s.undercutShare != null ? ` (${(s.undercutShare * 100).toFixed(1)}%)` : ""}</span>${why("Competitive asks are listings priced near the sold market; if many sellers undercut recent sales, prices tend to follow them down. '—' means Alert Desk hasn't published this count yet.")}</div>`;
   return `<section class="panel sigf"><h2>Decision ${statusPill(s)}</h2>
-  ${priceHtml ? `<div class="sgprice"><small>LOWEST ALL-IN</small>${priceHtml}</div>` : ""}<div class="sgrow">${stagePill(s)}<span class="sgwhy">${esc(s.reason)}</span></div>${liqCaution(c.liq, s.status)}
+  ${priceHtml ? `<div class="sgprice"><small>LOWEST ALL-IN</small>${priceHtml}</div>` : ""}<div class="sgrow">${stagePill(s)}<span class="sgwhy">${esc(s.reason)}</span></div>${soldStaleLine(s)}${pcxLine(c.pcx)}${liqCaution(c.liq, s.status)}
   ${why(s.status === "DEAL" ? "DEAL: the cheapest reputable listing (item + shipping) is under the buy-below target AND low enough for the trend stage. This is the dashboard's rule read-out; pushed alerts are on the Deals tab." : s.status === "WATCH" ? `WATCH: not a deal yet. ${s.price != null && s.target != null && s.price > s.target ? `The cheapest listing ${c2(s.price)} is above the buy-below target ${c2(s.target)}.` : `The cheapest listing ${c2(s.price)} is under the target, but the card is still ${esc(s.stage || "trending")}, so it also has to reach the deal ceiling ${c2(s.ceil)}.`} Rule: under target AND ≤ bottom low if falling fast, ≤ bottom mid if falling, otherwise ≤ bottom high.` : "No status: there's no live listing or no target for this card.")}
   ${s.status === "WATCH" ? `<div class="sgceil">deal ceiling <b>${c2(s.ceil)}</b>${s.basis ? ` <small>(${esc(s.basis)} because ${esc(s.stage || "trend pending")})</small>` : ""} · compared with item + ship ${c2(s.price)}, tax shown separately</div>` : s.price != null ? `<div class="sgceil">lowest item + ship ${c2(s.price)} <small>(tax separate)</small></div>` : ""}
   <div class="sggrid">
