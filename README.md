@@ -22,6 +22,7 @@ js/derive.js             joins tables into the card model; deal / target / sugge
 js/charts.js             inline SVG: sparklines, price chart, radar
 js/roi.js                ROI after eBay fees + exit plan + retail MSRP board (pure; constants in config.js `fees`)
 js/opportunity.js        "Best buys now" opportunity score (research/opportunity.py): oppFor, bestBuys, badge/line/panel (pure)
+js/analog.js             long-history analog timing (research/analog_backtest.py): anaFor, anaPanel, anaBadge (pure)
 js/app.js                router + views
 ```
 Dev-only tools live outside the deployed folder, in `/home/box/pokemon-team/web-dev-tools/`:

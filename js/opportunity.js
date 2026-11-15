@@ -1,4 +1,4 @@
-// "Best buys now" opportunity score (watchlist opportunity_*, research/opportunity.py, method opportunity-v1). Display / ranking
+// "Best buys now" opportunity score (watchlist opportunity_*, research/opportunity.py, method opportunity-v2). Display / ranking
 // only: never changes DEAL/WATCH, alerts, buy_below (70% of reference) or paper trades. Values are as of the last pipeline run.
 import { esc } from "./util.js";
 const n = (v) => (v == null || isNaN(+v) ? null : +v);
@@ -9,7 +9,7 @@ export function oppFor(w) {
   if (!o && score == null && !note) return null;
   return { score, rank, note: note || "", eligible: o ? o.eligible === true : score != null, why: o?.ineligible || null, ask: n(o?.ask), cost: n(o?.cost), sale: n(o?.sale), saleSrc: o?.sale_source || null,
     pct: n(o?.net_profit_pct), profit: n(o?.net_profit_usd), zoneLow: n(o?.zone_low), zoneHigh: n(o?.zone_high), zonePos: n(o?.zone_pos_pct), inZone: o?.in_zone === true,
-    liq: o?.liquidity || null, phase: o?.phase || null, knife: o?.falling_knife === true, actionable: o?.actionable === true, comp: o?.components || null, asOf: o?.as_of || null, method: o?.method || "opportunity-v1" };
+    liq: o?.liquidity || null, phase: o?.phase || null, knife: o?.falling_knife === true, actionable: o?.actionable === true, stage: o?.stage || null, months: n(o?.months_since_release), comp: o?.components || null, asOf: o?.as_of || null, method: o?.method || "opportunity-v2" };
 }
 // Ranked rows only, sorted by key ("score" | "pct" | "zone"); ties fall back to rank.
 export function bestBuys(cards, key = "score", limit = 10) {
@@ -23,7 +23,8 @@ export const oppLine = (o) => (!o ? "" : o.score != null ? `<div class="mrow s o
 export function oppPanel(o) {
   if (!o) return "";
   const c = o.comp;
-  return `<div class="st oppst"><small>BEST-BUY SCORE <span class="sugg">opportunity-v1</span></small><b>${o.score != null ? `${oppBadge(o)} <small>rank #${o.rank}</small>` : "not ranked"}</b>${esc(o.note)}
-  ${c ? `<br><small>profit ${c.profit}/40 · zone ${c.zone}/25 · liquidity ${c.liquidity}/15 · confidence ${c.confidence}/10 · phase ${c.phase}/10</small>` : ""}
-  <details class="why"><summary aria-label="What this means">ⓘ what this means</summary><p>Ranks watchlist rows by risk-adjusted buy value at today's lowest valid ask (item + shipping, seller 30+ fb / 90%+, × 1.065 tax). Profit = net after eBay fees (13.25% + $0.40 + outbound ship) selling at the 12-mo estimate (your sell_above, else research est., else precedent est.); full 40 points at +100%. Zone = in/below the predicted bottom zone (25), falling to 0 at 50% above. Liquidity high 15 / medium 10 / low 3 / unknown 0. Phase: basing 10, recovering 8, declining 4, falling knife 0. Presale, insufficient-data, no-valid-ask and loses-money rows are not ranked. Estimates, not promises; display only (${esc(o.method)}${o.asOf ? ", " + esc(o.asOf.slice(0, 16).replace("T", " ")) + " CT" : ""}).</p></details></div>`;
+  const stageChip = o.stage ? `<br><small class="chip">stage: ${esc(o.stage)}${o.months != null ? ` (month ${o.months})` : ""}${c?.stage != null ? ` · ${c.stage}/10` : ""}</small>` : (c?.stage != null ? `<br><small class="chip">stage ${c.stage}/10</small>` : "");
+  return `<div class="st oppst"><small>BEST-BUY SCORE <span class="sugg">opportunity-v2</span></small><b>${o.score != null ? `${oppBadge(o)} <small>rank #${o.rank}</small>` : "not ranked"}</b>${esc(o.note)}
+  ${c ? `<br><small>profit ${c.profit}/35 · zone ${c.zone}/25 · liquidity ${c.liquidity}/15 · confidence ${c.confidence}/10 · phase ${c.phase}/5 · stage ${c.stage}/10</small>` : ""}${stageChip}
+  <details class="why"><summary aria-label="What this means">ⓘ what this means</summary><p>Ranks watchlist rows by risk-adjusted buy value at today's lowest valid ask (item + shipping, seller 30+ fb / 90%+, × 1.065 tax). Profit = net after eBay fees (13.25% + $0.40 + outbound ship) selling at the 12-mo estimate (your sell_above, else research est., else precedent est.); full 35 points at +100%. Zone = in/below the predicted bottom zone (25), falling to 0 at 50% above. Liquidity high 15 / medium 10 / low 3 / unknown 0. Phase: basing 5, recovering 4, declining 2, falling knife 0. Stage (analog history): singles full marks in/past the typical bottom window (~month 10), 0 before; sealed full in/past (~month 3), half before. Early singles are never marked actionable. Presale, insufficient-data, no-valid-ask and loses-money rows are not ranked. Estimates, not promises; display only (${esc(o.method)}${o.asOf ? ", " + esc(o.asOf.slice(0, 16).replace("T", " ")) + " CT" : ""}).</p></details></div>`;
 }
