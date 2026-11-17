@@ -28,6 +28,8 @@ export async function createSupabase() {
     card_history: () => all("card_history", "*", "date"),
     reports: () => all("reports", "id,name,date,kind,markdown", "date"),
     papertrade: () => all("papertrade", "id,kind,portfolio,ts,date,data", "id"),
+    health: async () => { const { data, error } = await sb.from("sync_meta").select("key,value,synced_at").eq("key", "pipeline_health"); if (error) throw error;
+      return (data || []).map((r) => ({ ...(r.value || {}), synced_at: r.synced_at })); },   // 2026-11-17 scanner/health_check.py
   };
 
   // --- live updates: one channel, debounced per group, polling backup. Identical results are dropped

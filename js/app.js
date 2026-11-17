@@ -11,6 +11,7 @@ import { liqLine, liqPanel, liqBadge } from "./liquidity.js";
 import { bestBuys, oppZone, oppBadge, oppLine, oppPanel } from "./opportunity.js";
 import { anaPanel } from "./analog.js";
 import { bottomSection, bottomModel, meterHtml, phaseChip, fmtWindow } from "./bottom.js";
+import { healthModel, healthBanner } from "./health.js";
 
 const TEAM = [
   { name: "Pokemon Lead", role: "Coordinator: splits work, keeps the team on track", color: "#ffcb05" },
@@ -38,7 +39,7 @@ function shell(body, tab) {
   const scanErr = scan?.errors?.length ? ` · <span class="warn">${scan.errors.length} card${scan.errors.length > 1 ? "s" : ""} failed last scan</span>` : "";
   return `<header class="top"><a class="brand" href="#/deals"><span class="mk" aria-hidden="true">◆</span><span>COMMAND CENTER</span></a>
     <nav class="topnav">${nav}</nav>
-    <div class="fresh">${freshTag("listings", act)} · ${freshTag("trend", S.model?.cards.map((c) => c.refAt || c.synced_at).filter(Boolean).sort().at(-1))} · sold thru ${sold || "—"}${staleSold()}${scanErr}${D.backend()?.signOut ? ` · <a class="link" href="#/account">🔑 password</a> · <button class="link" id="signout">sign out</button>` : ""}</div></header>${pwBanner()}
+    <div class="fresh">${freshTag("listings", act)} · ${freshTag("trend", S.model?.cards.map((c) => c.refAt || c.synced_at).filter(Boolean).sort().at(-1))} · sold thru ${sold || "—"}${staleSold()}${scanErr}${D.backend()?.signOut ? ` · <a class="link" href="#/account">🔑 password</a> · <button class="link" id="signout">sign out</button>` : ""}</div></header>${healthBanner(healthModel({ health: S.health, cards: S.model?.cards || [], paper: S.paper || [] }))}${pwBanner()}
     ${S.error ? `<div class="err" role="alert">Data problem: ${esc(S.error)}</div>` : ""}
     <main>${body}</main><nav class="tabs">${nav}</nav>`;
 }
@@ -371,6 +372,7 @@ async function loadAll() {
     const [watchlist, sold, active, history, calls, scans, reports] = await Promise.all([D.getWatchlist(), D.getSoldSales(), D.getActiveSnapshot(), D.getCardHistory(), D.getResearchCalls(), D.getScans(), D.getReports()]);
     S.model = buildModel({ watchlist, sold, active, history, calls }); S.scans = scans; S.reports = reports; S.error = null;
     try { S.paper = await D.getPaperTrade(); } catch (e) { console.warn("papertrade", e.message || e); S.paper = S.paper || []; }
+    S.health = await D.getHealth();   // 2026-11-17 pipeline health banner (web/js/health.js)
   } catch (e) { console.error(e); S.error = e.message; if (!S.model) { $app.innerHTML = `<div class="center"><h1>Couldn't load data</h1><p>${esc(e.message)}</p></div>`; return; } }
   render();
 }

@@ -4,6 +4,7 @@ import { esc, money, tCT, ago } from "./util.js";
 import { fmtWindow } from "./bottom.js";
 import { stageInfo, STALE_MS, KIND_LABEL, REBOUND_PCT } from "./fields.js";
 import { liqCaution } from "./liquidity.js";
+import { activeStale } from "./health.js";
 const c2 = (v) => (v == null || isNaN(+v) ? "—" : "$" + (+v).toFixed(2));
 const p1 = (v, plus) => (v == null || isNaN(+v) ? "—" : (plus && v > 0 ? "+" : "") + (+v).toFixed(1) + "%");
 const basisLbl = (b) => (b === "post_peak" ? "since peak" : b === "window" ? "trend window" : b ? String(b) : null);
@@ -42,10 +43,13 @@ export function sig(c) {
   // 2026-11-13 sold-data staleness guard (same rule as check_targets.alert_tier): never show DEAL on stale sold comps.
   const fr = c.fresh || null, soldStale = !!(fr && fr.stale);
   if (soldStale && status === "DEAL") { status = "WATCH"; reason = `stale sold data — would be DEAL (${reason})`; }
+  // 2026-11-17 stale-active-listings guard (scanner/health_check.py; live browser clock): asks older than 6 h are not a DEAL.
+  const actStale = price != null && activeStale(c);
+  if (actStale && status === "DEAL") { status = "WATCH"; reason = `stale active listings — would be DEAL (${reason})`; }
   const rebound = stage === "rising" && t.off_peak_trend != null && t.off_peak_trend <= REBOUND_PCT;   // rising over the window but still below the peak
   return { stage, slope: t.slope, postPeak: t.postPeakSlope, slopeBasis: t.slopeBasis, fair: r.fair, capped: r.fairCapped, lineToday: r.lineToday, ref: r.reference, pct: r.pct, p25: r.p25, k: r.k, askAdj, target, kind: r.kind, manual: r.manual,
     leading: r.leading, competitiveN: r.competitiveN, asksTotalN: r.asksTotalN, undercutN: r.undercutN, undercutShare: r.undercutShare,
-    zl, zm, zh, ceil, basis, win: fmtWindow(c.sug.wStart, c.sug.wEnd, c.sug.wText), conf: c.sug.conf, room, offPeak: t.off_peak, offPeakTrend: t.off_peak_trend, peakSrc: t.peakSrc, insuff: c.sug.insuff, askFloor: r.askFloor, sourceText: r.sourceText, refAt: c.refAt || c.synced_at, peak: t.peak, peakDate: t.peak_date, twin: t.win, price, status, reason, rebound, soldStale, fresh: fr };
+    zl, zm, zh, ceil, basis, win: fmtWindow(c.sug.wStart, c.sug.wEnd, c.sug.wText), conf: c.sug.conf, room, offPeak: t.off_peak, offPeakTrend: t.off_peak_trend, peakSrc: t.peakSrc, insuff: c.sug.insuff, askFloor: r.askFloor, sourceText: r.sourceText, refAt: c.refAt || c.synced_at, peak: t.peak, peakDate: t.peak_date, twin: t.win, price, status, reason, rebound, soldStale, fresh: fr, activeStale: actStale };
 }
 const pctLbl = (s) => (s.pct != null ? `${Math.round(s.pct * 1000) / 10}%` : "—%");
 export const stagePill = (s) => { const i = stageInfo(s.stage);
@@ -65,7 +69,7 @@ export function sigCompact(c) {
   <div class="sgk"><span>fair <b>${c2(s.fair)}</b></span><span>buy &lt; <b>${c2(s.target)}</b></span></div>
   ${s.insuff ? `<div class="insuf">⏳ No bottom call yet: ${esc(s.insuff)}</div>` : `<div class="sgk"><span title="predicted bottom">bottom <b>${s.zl != null ? `${money(s.zl)}–${money(s.zh)}` : "pending"}</b></span><span>${s.room == null ? "room —" : s.room <= 0 ? "<b class='g'>at/below zone</b>" : `room <b>${s.room.toFixed(0)}%</b>`}</span></div>`}
   <div class="sgk"><span>off peak <b>${p1(s.offPeak)}</b></span></div><div class="sgk"><span>${asksLine(s)}</span></div>
-  <div class="sgw">${esc(s.reason)}</div>${soldStaleLine(s)}${pcxLine(c.pcx)}${liqCaution(c.liq, s.status)}${st ? `<div class="fr stale">⚠ listings ${c.scanned_at ? ago(c.scanned_at) : "never scanned"}</div>` : ""}</div>`;
+  <div class="sgw">${esc(s.reason)}</div>${soldStaleLine(s)}${pcxLine(c.pcx)}${liqCaution(c.liq, s.status)}${s.activeStale ? `<div class="liqc soldst" title="Deal alerts are held as WATCH until a fresh listings scan (older than 6 h)">⚠ Stale active listings: last scanned ${c.scanned_at ? ago(c.scanned_at) : "never"}</div>` : st ? `<div class="fr stale">⚠ listings ${c.scanned_at ? ago(c.scanned_at) : "never scanned"}</div>` : ""}</div>`;
 }
 
 // Full panel for the card trajectory view.
