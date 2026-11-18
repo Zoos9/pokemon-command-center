@@ -6,8 +6,11 @@
 export const DEFAULT_FEES = { ebayFeePct: 0.1325, perOrderFee: 0.40, taxRate: 0.065,
   ship: { pwe: 1.25, pweMaxSale: 20, bmwt: 5.00, etb: 13.00, box: 22.00 }, thinMarginX: 1.25, stopFallbackPct: 20 };
 
-const r2 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 100) / 100);
-const r3 = (v) => (v == null || !isFinite(v) ? null : Math.round(v * 1000) / 1000);
+// 2026-11-18 round half away from zero, float-noise safe (|v|·10^nd -> toFixed(6) -> Math.round), identical to
+// research/msrp_board.round_half_up (Decimal ROUND_HALF_UP), so x.xx5 nets match Python to the cent.
+const rhu = (v, nd) => { const f = 10 ** nd, s = v < 0 ? -1 : 1; return (s * Math.round(+(Math.abs(v) * f).toFixed(6))) / f; };
+export const r2 = (v) => (v == null || !isFinite(v) ? null : rhu(v, 2));
+export const r3 = (v) => (v == null || !isFinite(v) ? null : rhu(v, 3));
 
 // Item kind -> shipping tier. Singles: plain envelope under pweMaxSale, tracked bubble mailer at/above it.
 export function itemKind(name, category) {

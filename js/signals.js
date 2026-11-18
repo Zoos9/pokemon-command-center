@@ -4,7 +4,7 @@ import { esc, money, tCT, ago } from "./util.js";
 import { fmtWindow } from "./bottom.js";
 import { stageInfo, STALE_MS, KIND_LABEL, REBOUND_PCT } from "./fields.js";
 import { liqCaution } from "./liquidity.js";
-import { activeStale } from "./health.js";
+import { decide } from "./decision.js";
 const c2 = (v) => (v == null || isNaN(+v) ? "—" : "$" + (+v).toFixed(2));
 const p1 = (v, plus) => (v == null || isNaN(+v) ? "—" : (plus && v > 0 ? "+" : "") + (+v).toFixed(1) + "%");
 const basisLbl = (b) => (b === "post_peak" ? "since peak" : b === "window" ? "trend window" : b ? String(b) : null);
@@ -27,25 +27,11 @@ export function sig(c) {
   const t = c.trendData || {}, r = c.ref || {};
   const stage = t.phase ? String(t.phase).toLowerCase() : null;
   const zl = c.sug.low, zh = c.sug.high, zm = t.zone_mid ?? (zl != null && zh != null ? Math.round((zl + zh) * 50) / 100 : null);
-  const ceil = t.deal_ceiling, basis = t.ceil_basis;
   const price = c.lowest?.total ?? null, target = c.target.buy;
   const askAdj = r.p25 != null && r.k != null ? r.p25 * r.k : null;
   const room = price != null && zl != null ? (price - zl) / price * 100 : null;   // % the price still has to fall to reach zone_low
-  let status = null, reason;
-  if (price == null) reason = "no live reputable ask";
-  else if (target == null) reason = "no target set";
-  else if (price > target) { status = "WATCH"; reason = `above target ${c2(target)}${ceil != null ? `, needs ≤ ${c2(Math.min(target, ceil))}` : ""}`; }
-  else if (ceil == null) {
-    if (stage === "falling fast" || stage === "falling") { status = "WATCH"; reason = `under target but ${stage}, no predicted bottom yet`; }
-    else { status = "DEAL"; reason = `under target ${c2(target)} · ${stage || "trend pending"} · no predicted bottom`; }
-  } else if (price <= ceil) { status = "DEAL"; reason = `under target and ≤ ${basis || "ceiling"} ${c2(ceil)}${stage ? ` (${stage})` : ""}`; }
-  else { status = "WATCH"; reason = `under target but ${stage || "trend pending"}, needs ≤ ${c2(ceil)}`; }
-  // 2026-11-13 sold-data staleness guard (same rule as check_targets.alert_tier): never show DEAL on stale sold comps.
-  const fr = c.fresh || null, soldStale = !!(fr && fr.stale);
-  if (soldStale && status === "DEAL") { status = "WATCH"; reason = `stale sold data — would be DEAL (${reason})`; }
-  // 2026-11-17 stale-active-listings guard (scanner/health_check.py; live browser clock): asks older than 6 h are not a DEAL.
-  const actStale = price != null && activeStale(c);
-  if (actStale && status === "DEAL") { status = "WATCH"; reason = `stale active listings — would be DEAL (${reason})`; }
+  // 2026-11-18: the Deal/Watch call comes from the ONE shared decision (decision.js, mirrors check_targets.card_tier).
+  const d = decide(c), { status, reason, ceil, basis, soldStale } = d, fr = d.fresh, actStale = d.activeStale;
   const rebound = stage === "rising" && t.off_peak_trend != null && t.off_peak_trend <= REBOUND_PCT;   // rising over the window but still below the peak
   return { stage, slope: t.slope, postPeak: t.postPeakSlope, slopeBasis: t.slopeBasis, fair: r.fair, capped: r.fairCapped, lineToday: r.lineToday, ref: r.reference, pct: r.pct, p25: r.p25, k: r.k, askAdj, target, kind: r.kind, manual: r.manual,
     leading: r.leading, competitiveN: r.competitiveN, asksTotalN: r.asksTotalN, undercutN: r.undercutN, undercutShare: r.undercutShare,

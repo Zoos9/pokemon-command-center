@@ -30,7 +30,9 @@ export const TABLES = {
     // 2026-11-03 best-buy opportunity score (research/opportunity.py); Supabase has no columns for these, they come from the data jsonb
     opportunity_score: "opportunity_score", opportunity_rank: "opportunity_rank", opportunity_note: "opportunity_note", opportunity: "opportunity",
     // 2026-11-04 long-history analog timing (research/analog_backtest.py); from the data jsonb on Supabase
-    analog_history: "analog_history" } },
+    analog_history: "analog_history",
+    // 2026-11-18 Deal/Watch decision inputs (decision.js); data jsonb on Supabase, top-level in the local export
+    sold_freshness: "sold_freshness", active_freshness: "active_freshness", pc_crosscheck: "pc_crosscheck", watch_only: "watch_only", deal_alerts: "deal_alerts", presale_only: "presale_only", deal_decision: "deal_decision" } },
   sold_sales:      { fields: { card_id: "card_id", item_id: "item_id", price: "price_usd", sold_date: "sold_date", condition: "condition", title: "title", url: "url", seller: "seller", seller_feedback: "seller_feedback" } },
   active_snapshot: { fields: { card_id: "card_id", scanned_at: "scanned_at", ebay_total: "ebay_total", reputable_count: "reputable_count", bin_count: "bin_count", auction_count: "auction_count", lowest_total: "lowest_total", lowest: "lowest_reputable", listings: "listings",
     // fallbacks for the lowest listing when its jsonb lacks the per-listing fields

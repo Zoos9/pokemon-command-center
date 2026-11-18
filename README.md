@@ -19,6 +19,7 @@ js/fields.js             ONE place mapping app fields -> table columns (+ SUPABA
 js/adapters/supabase.js  wraps window.PokeData (auth, polling via PokeData.subscribe) + paged bulk reads
 js/adapters/local.js     dev only: reads ../web-data/*.json, polls
 js/derive.js             joins tables into the card model; deal / target / suggested-zone logic
+js/decision.js           ONE shared Deal/Watch decision (deal-decision-v1, mirrors scanner/check_targets.card_tier); every DEAL/WATCH label uses it
 js/charts.js             inline SVG: sparklines, price chart, radar
 js/roi.js                ROI after eBay fees + exit plan + retail MSRP board (pure; constants in config.js `fees`)
 js/opportunity.js        "Best buys now" opportunity score (research/opportunity.py): oppFor, bestBuys, badge/line/panel (pure)

@@ -205,3 +205,5 @@ pre{white-space:pre-wrap;font:12px/1.5 var(--mono);color:#cfc9ee;max-height:420p
 .hban.amber{background:#ff9f1c22;border:2px solid #ff9f1c}.hban.red{background:#ff547033;border:2px solid var(--red)}
 .hban span.red b{color:var(--red)}.hban span.amber b{color:#ff9f1c}.hban small{color:var(--dim)}
 @media (max-width:600px){.hban{margin:10px 16px 0;font-size:13px}}
+/* 2026-11-18 deal-decision-v1: an under-target card the shared decision holds as WATCH */
+.deal.held{border-color:var(--amb);box-shadow:6px 6px 0 var(--amb)}.deal.held .tag{color:var(--amb)}.deal.held .big,.deal.held .big .pt .ptv{color:var(--amb)}.deal .twr{font-size:12px;color:#ffcb05;margin:-2px 0 6px}

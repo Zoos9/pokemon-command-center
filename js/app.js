@@ -6,6 +6,7 @@ import { esc, money, pct, tCT, dCT, ago } from "./util.js";
 import { priceBtn } from "./price.js";
 import { alertPrice, alertActive } from "./fields.js";
 import { sigCompact, sigFull, freshTag } from "./signals.js";
+import { decide } from "./decision.js";   // 2026-11-18 one shared Deal/Watch decision
 import { vPaper } from "./paper.js";
 import { liqLine, liqPanel, liqBadge } from "./liquidity.js";
 import { bestBuys, oppZone, oppBadge, oppLine, oppPanel } from "./opportunity.js";
@@ -188,7 +189,10 @@ function dealCard(c, kind) {
   const ref = kind === "target" ? c.target.buy : c.sug.buy, l = c.lowest, refLabel = kind === "target" ? "your target" : "suggested buy-below";
   const under = c.med7 ? (1 - l.total / c.med7) * 100 : null;
   // The price breakdown sits OUTSIDE the card link so tapping it expands instead of navigating.
-  return `<article class="deal ${kind}">${cardLink(c, `<div class="tag">${kind === "target" ? "✅ UNDER YOUR TARGET" : "💡 UNDER SUGGESTED ZONE · not an alert"}</div>
+  // 2026-11-18: under-target cards say DEAL only when the shared decision does (decision.js); otherwise WATCH + why.
+  const dd = kind === "target" ? decide(c) : null, held = dd && dd.status !== "DEAL";
+  const tag = kind !== "target" ? "💡 UNDER SUGGESTED ZONE · not an alert" : held ? `👀 UNDER YOUR TARGET · WATCH, not a deal` : "🔥 DEAL · UNDER YOUR TARGET";
+  return `<article class="deal ${kind}${held ? " held" : ""}" data-tier="${dd ? dd.status || "" : ""}">${cardLink(c, `<div class="tag">${tag}</div>${held ? `<div class="twr">why watch: ${esc(dd.reason || "")}</div>` : ""}
     <div class="dt">${cname(c)}</div>${l.title ? `<div class="ltitle">“${esc(l.title)}”</div>` : ""}`)}
     ${(() => { const bm = bottomModel(c), mt = meterHtml(bm, true), ch = phaseChip(bm); return mt || ch ? `<div class="dbot">${ch}${mt}</div>` : ""; })()}<div class="big">${priceBtn(l, { key: "deal-" + c.id, target: ref, targetLabel: refLabel })}</div>${cardLink(c, sigCompact(c))}${roiDealLine(c)}${liqLine(c.liq)}
     ${cardLink(c, `<div class="vs">7d sold median <b>${money(c.med7)}</b> · ${refLabel} <b>${money(ref)}</b> <small>(item+ship ${money(l.total)})</small></div>
@@ -199,7 +203,9 @@ function dealCard(c, kind) {
 function vDeals() {
   const m = S.model, d = deals(m.cards);
   let head, sub;
-  if (d.confirmed.length) { head = `<em>YES</em> — ${d.confirmed.length} listing${d.confirmed.length > 1 ? "s" : ""} under your target`; }
+  const dealN = d.confirmed.filter((c) => decide(c).status === "DEAL").length, heldN = d.confirmed.length - dealN;
+  if (dealN) { head = `<em>YES</em> — ${dealN} Deal${dealN > 1 ? "s" : ""} under your target${heldN ? ` <small>(+${heldN} held as Watch)</small>` : ""}`; }
+  else if (d.confirmed.length) { head = `<em class="amber">NO DEAL</em> — ${d.confirmed.length} listing${d.confirmed.length > 1 ? "s" : ""} under your target, held as Watch`; }
   else if (!d.anyTargets) { head = `<em class="amber">NO TARGETS SET</em> — no confirmed deals yet`; }
   else head = `<em class="no">NO</em> — nothing under your targets right now`;
   const cl = d.closest ? `Closest${d.confirmed.length ? " other" : ""}: ${cardLink(d.closest.c, `<b>${esc(d.closest.c.name)} ${d.closest.c.lang} ${esc(d.closest.c.number)}</b>`)} — lowest ask ${money(d.closest.c.lowest.total)} is ${pct(d.closest.gap)} vs ${d.closest.c.src === "target" ? "your target" : "suggested"} ${money(d.closest.c.effBuy)}.` : "";
@@ -212,7 +218,7 @@ function vDeals() {
     <td><div class="bar"><i style="width:${Math.max(4, Math.min(100, 100 - c.dist * 2))}%;background:${c.dist <= 10 ? "#2ee6a6" : c.dist <= 30 ? "#ffcb05" : "#ff9f1c"}"></i></div><small class="n">${c.dist <= 0 ? "in zone" : pct(c.dist) + " above"}</small></td>
     <td class="hide-s">${spark(c.daily.map((x) => x[1]), 90, 24)}</td><td class="n hide-s">${priceBtn(c.lowest, { key: "near-" + c.id, pop: true, compact: true, target: c.effBuy, targetLabel: c.src === "target" ? "your target" : "suggested" })}</td><td class="n hide-s">${c.s7 ?? "—"}</td></tr>`).join("");
   return `${setBanner()}<section class="hero"><h1 class="verdict">${head}</h1><p class="sub">${sub}</p></section>
-    ${d.confirmed.length ? `<section><h2>✅ Under your target <small>confirmed · seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</small></h2><div class="deals">${d.confirmed.map((c) => dealCard(c, "target")).join("")}</div></section>` : ""}
+    ${d.confirmed.length ? `<section><h2>✅ Under your target <small>seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb · ${dealN} Deal · ${heldN} Watch</small></h2><div class="deals">${d.confirmed.map((c) => dealCard(c, "target")).join("")}</div></section>` : ""}
     ${sell}
     ${d.suggested.length ? `<section><h2>💡 Under suggested zone <small>researcher's zone, not your target · ${money(CONFIG.MIN_CARD_VALUE)}+ cards · seller ${CONFIG.MIN_SELLER_FEEDBACK}+ fb</small></h2><div class="deals">${d.suggested.map((c) => dealCard(c, "suggested")).join("")}</div></section>` : ""}
     ${bulk}
@@ -238,7 +244,16 @@ function pastAlerts() {
   if (!p.length) return "";
   return `<details class="past" data-k="past-alerts"><summary>Past alerts (${p.length})</summary>${p.map((x) => `<div class="pal"><span class="pst">${esc(x.status)}</span> ${esc(x.card)} ${esc(x.number || "")} ${pastPrice(x)}${x.status_reason ? `<div class="psr">${esc(x.status_reason)}</div>` : ""}<small>fired ${dCT(x.ts)}${x.status_checked_at ? ` · checked ${dCT(x.status_checked_at)}` : ""}</small></div>`).join("")}</details>`;
 }
-const alTier = (x) => (String(x.tier || "DEAL").toUpperCase() === "WATCH" ? "WATCH" : "DEAL");
+// 2026-11-18: an alert shows as DEAL only if it was a DEAL when it fired AND its card is a DEAL now (shared decision.js);
+// legacy rows without a tier no longer default to DEAL. Buy alerts only; sell signals keep their own tier.
+const alNow = (x) => { const c = S.model?.byId?.[x.card_id]; return c ? decide(c) : null; };
+const alTier = (x) => { const t = String(x.tier || "").toUpperCase();
+  if (x.direction === "above_sell") return t === "WATCH" ? "WATCH" : "DEAL";
+  if (t !== "DEAL" && t !== "") return "WATCH";
+  const d = alNow(x); return d && d.status === "DEAL" ? "DEAL" : "WATCH"; };
+const alWhy = (x) => { if (alTier(x) !== "WATCH") return "";
+  const t = String(x.tier || "").toUpperCase(), d = x.direction === "above_sell" ? null : alNow(x);
+  return (t === "WATCH" ? x.tier_reason : d ? `now ${d.status || "no status"}: ${d.reason}` : "card is no longer on the watchlist") || ""; };
 const alLbl = (x) => (alTier(x) === "WATCH" ? "👀 watching" : x.direction === "above_sell" ? "📤 SELL" : "📥 BUY");
 const alCeil = (x) => { if (alTier(x) !== "WATCH" || x.deal_ceiling == null) return "";
   const now = +x.value, gap = now && +x.deal_ceiling ? (now / x.deal_ceiling - 1) * 100 : null;
@@ -247,7 +262,7 @@ const alZone = (x) => { if (x.zone_low == null || x.zone_high == null) return ""
   const d = x.zone_distance_pct, t = d == null ? "" : +d === 0 ? " · inside the zone" : +d > 0 ? ` · ${(+d).toFixed(0)}% above zone` : ` · ${Math.abs(+d).toFixed(0)}% below zone`;
   const w = fmtWindow(null, null, x.research_bottom_window);
   return `${alCeil(x)}<div class="alz">predicted bottom ${money(x.zone_low)}–${money(x.zone_high)}${x.zone_mid != null ? ` (mid ${money(x.zone_mid)})` : ""}${t}${x.phase ? ` · ${esc(x.phase)}` : ""}${x.research_confidence ? ` · ${esc(x.research_confidence)} confidence` : ""}${w ? ` · expected ${w}` : ""}${x.research_falling_knife ? ` · <b class="kn">🔪 falling knife</b>` : ""}</div>`; };
-const alRow = (x) => x.alert_text ? `<div class="al"><b>${alLbl(x)}</b> ${esc(x.alert_text)} ${x.price_kind === "lowest_active" ? `<div class="alp">${priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" })}</div>` : ""}${alZone(x)}${alTier(x) === "WATCH" && x.tier_reason ? `<div class="twr">why watch: ${esc(x.tier_reason)}</div>` : ""}${flagBadges(x.flags)}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>` : `<div class="al"><b>${alLbl(x)}</b> ${esc(x.card)} ${esc(x.number || "")} — ${esc(KIND[x.price_kind] || x.price_kind || "price")} ${x.price_kind === "lowest_active" ? priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" }) : money(x.value)} is ${x.direction === "above_sell" ? "above your sell" : "below your buy"} target ${money(x.target)} ${alZone(x)}${alTier(x) === "WATCH" && x.tier_reason ? `<div class="twr">why watch: ${esc(x.tier_reason)}</div>` : ""}${flagBadges(x.flags)}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>`;
+const alRow = (x) => x.alert_text ? `<div class="al"><b>${alLbl(x)}</b> ${esc(x.alert_text)} ${x.price_kind === "lowest_active" ? `<div class="alp">${priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" })}</div>` : ""}${alZone(x)}${alWhy(x) ? `<div class="twr">why watch: ${esc(alWhy(x))}</div>` : ""}${flagBadges(x.flags)}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>` : `<div class="al"><b>${alLbl(x)}</b> ${esc(x.card)} ${esc(x.number || "")} — ${esc(KIND[x.price_kind] || x.price_kind || "price")} ${x.price_kind === "lowest_active" ? priceBtn(alertPrice(x), { key: "al-" + (x.ts || "") + x.card_id, compact: true, target: x.target, targetLabel: x.direction === "above_sell" ? "your sell target" : "your buy target" }) : money(x.value)} is ${x.direction === "above_sell" ? "above your sell" : "below your buy"} target ${money(x.target)} ${alZone(x)}${alWhy(x) ? `<div class="twr">why watch: ${esc(alWhy(x))}</div>` : ""}${flagBadges(x.flags)}<small>${dCT(x.ts)}</small>${x.link ? ` <a href="${esc(x.link)}" target="_blank" rel="noopener">↗</a>` : ""}</div>`;
 function alertsBox(anyTargets) {
   const a = S.alerts.filter(alertActive).slice(-8).reverse(), deal = a.filter((x) => alTier(x) === "DEAL"), watch = a.filter((x) => alTier(x) === "WATCH");
   return `<section class="panel alerts"><h2>🚨 Alerts</h2>${a.length ? `${deal.length ? `<div class="altier deal"><h3>🔥 DEAL <small>pushed</small></h3>${deal.map(alRow).join("")}</div>` : ""}${watch.length ? `<div class="altier watch"><h3>👀 Watching (not a deal yet) <small>not pushed — not a buy signal</small></h3>${watch.map(alRow).join("")}</div>` : ""}`
