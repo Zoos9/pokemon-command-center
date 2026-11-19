@@ -39,7 +39,7 @@ open http://127.0.0.1:8792/web/?backend=supabase   # force the Supabase path (si
 ```
 
 ## Deploy
-Run `/home/box/pokemon-team/sync/deploy_site.sh /home/box/pokemon-team/web`. It rsyncs web/ into the site repo (no `--delete`), refuses to run if it finds secret-looking strings, then commits and pushes to `origin main`. All paths are relative, so the app works under `/pokemon-command-center/`. The overlapping files (`index.html`, `js/app.js`, `js/data.js`, `js/config.js`) replace the placeholder versions. The leftover `site/README.md` is harmless. Private data is never inside web/.
+Run `/home/box/pokemon-team/sync/deploy_site.sh /home/box/pokemon-team/web`. It mirrors web/ into the site repo (files not in web/ are removed; .git/.nojekyll kept), moves any backup/temp/dotfile/env/key file (*.bak*, *.orig, *.tmp, dotfiles, *.env, *.pem, *.key, *secret*, ...) out to backups/deploy-excluded-<ts>/ (2026-11-19; never published), refuses if one is still staged, writes sync/last_publish_manifest.txt, refuses to run if it finds secret-looking strings, then commits and pushes to `origin main`. All paths are relative, so the app works under `/pokemon-command-center/`. The overlapping files (`index.html`, `js/app.js`, `js/data.js`, `js/config.js`) replace the placeholder versions. The leftover `site/README.md` is harmless. Private data is never inside web/.
 
 ## Targets vs suggested
 - **Your targets:** `watchlist.buy_below` / `sell_above`. They're primary; deals under them show as "✅ Under your target" (confirmed), and they're the only thing that drives alerts.
