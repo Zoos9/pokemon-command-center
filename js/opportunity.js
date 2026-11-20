@@ -9,7 +9,7 @@ export function oppFor(w) {
   if (!o && score == null && !note) return null;
   return { score, rank, note: note || "", eligible: o ? o.eligible === true : score != null, why: o?.ineligible || null, ask: n(o?.ask), cost: n(o?.cost), sale: n(o?.sale), saleSrc: o?.sale_source || null,
     pct: n(o?.net_profit_pct), profit: n(o?.net_profit_usd), zoneLow: n(o?.zone_low), zoneHigh: n(o?.zone_high), zonePos: n(o?.zone_pos_pct), inZone: o?.in_zone === true,
-    liq: o?.liquidity || null, phase: o?.phase || null, knife: o?.falling_knife === true, actionable: o?.actionable === true, stage: o?.stage || null, months: n(o?.months_since_release), comp: o?.components || null, asOf: o?.as_of || null, method: o?.method || "opportunity-v2" };
+    liq: o?.liquidity || null, phase: o?.phase || null, knife: o?.falling_knife === true, actionable: o?.actionable === true, thin: o?.thin_margin === true, stage: o?.stage || null, months: n(o?.months_since_release), comp: o?.components || null, asOf: o?.as_of || null, method: o?.method || "opportunity-v2" };
 }
 // Ranked rows only, sorted by key ("score" | "pct" | "zone"); ties fall back to rank.
 export function bestBuys(cards, key = "score", limit = 10) {
