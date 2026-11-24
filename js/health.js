@@ -29,8 +29,25 @@ export function healthModel({ health = null, cards = [], paper = [] } = {}, now 
     return { key, label: LABEL[key], t, ageH, status: ageH == null || ageH > r ? "red" : ageH > a ? "amber" : "ok" }; });
   const rank = { ok: 0, amber: 1, red: 2 };
   const overall = items.reduce((w, i) => (rank[i.status] > rank[w] ? i.status : w), "ok");
-  return { overall, items, staleActiveN: cards.filter((c) => activeStale(c, now)).length, n: cards.length };
+  return { overall, items, staleActiveN: cards.filter((c) => activeStale(c, now)).length, n: cards.length, catchup: catchupModel(h.catchup, items) };
 }
+
+// 2026-11-24 outage catch-up (scanner/catchup.py -> health.catchup): what the box re-ran by itself after an outage, and what
+// still needs a teammate. The sold-refresh note is rebuilt from the live sold_merge age, so it never lags.
+export function catchupModel(cu, items = []) {
+  if (!cu || typeof cu !== "object") return null;
+  const lastT = ms(cu.last_ran_at);
+  const ran = (cu.last_ran || []).map((j) => JOB[j] || j);
+  const sold = items.find((i) => i.key === "sold_merge");
+  const needs = sold && sold.status !== "ok" ? [`sold refresh overdue ${sold.ageH == null ? "(never)" : Math.round(sold.ageH) + "h"}: needs Price Scout`] : [];
+  return { lastT, ran, ok: cu.last_ran_ok !== false, needs };
+}
+const JOB = { paper_trading: "paper trading", nightly_research: "nightly research", weekly_history: "weekly refresh",
+  pricecharting: "PriceCharting check", launch_switch: "launch switch" };
+const catchupTxt = (c) => { if (!c) return ""; const bits = [];
+  if (c.ran.length && c.lastT != null) bits.push(`Auto catch-up ${when(c.lastT)} re-ran ${c.ran.join(", ")}${c.ok ? "" : " (some failed)"}.`);
+  if (c.needs.length) bits.push(c.needs.map((n) => n[0].toUpperCase() + n.slice(1)).join("; ") + " (the box can't run it by itself).");
+  return bits.join(" "); };
 
 export function healthBanner(m) {
   if (!m || m.overall === "ok") return "";
@@ -41,5 +58,6 @@ export function healthBanner(m) {
   const tail = act && act.status !== "ok"
     ? ` Prices below are from the last scan, not live. Deals on ${m.staleActiveN}/${m.n} cards with listings older than ${ACTIVE_STALE_H} h are held as Watch.`
     : " Listings are current; Deals on cards with stale sold comps are held as Watch.";
-  return `<div class="hban ${m.overall}" role="${m.overall === "red" ? "alert" : "status"}"><b>${head}:</b> ${parts}.${esc(tail)}</div>`;
+  const cu = catchupTxt(m.catchup);
+  return `<div class="hban ${m.overall}" role="${m.overall === "red" ? "alert" : "status"}"><b>${head}:</b> ${parts}.${esc(tail)}${cu ? `<br><small class="cu">${esc(cu)}</small>` : ""}</div>`;
 }
